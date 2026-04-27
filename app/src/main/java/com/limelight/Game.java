@@ -45,6 +45,7 @@ import com.limelight.ui.GameGestures;
 import com.limelight.ui.StreamContainer;
 import com.limelight.utils.Dialog;
 import com.limelight.utils.ExternalDisplayControlActivity;
+import com.limelight.utils.LastSessionManager;
 import com.limelight.utils.MouseModeOption;
 import com.limelight.utils.PanZoomHandler;
 import com.limelight.utils.PerformanceDataTracker;
@@ -1760,6 +1761,13 @@ public class Game extends AppCompatActivity implements SurfaceHolder.Callback,
     @Override
     protected void onStop() {
         super.onStop();
+
+        LimeLog.info("Game.onStop: isFinishing=" + isFinishing() + " connected=" + connected);
+        if (!isFinishing()) {
+            saveLastSession();
+        } else {
+            LimeLog.info("Game.onStop: skipping session save (explicit finish)");
+        }
 
         SpinnerDialog.closeDialogs(this);
         Dialog.closeDialogs();
@@ -3975,6 +3983,7 @@ public class Game extends AppCompatActivity implements SurfaceHolder.Callback,
             showGameMenu(null);
             return;
         }
+        LastSessionManager.clear(this);
         super.onBackPressed();
     }
 
@@ -4211,7 +4220,42 @@ public class Game extends AppCompatActivity implements SurfaceHolder.Callback,
         prefConfig.enableTouchSensitivity = !prefConfig.enableTouchSensitivity;
     }
 
+    private void saveLastSession() {
+        LimeLog.info("Game.saveLastSession: saving session host=" + host
+                + " appId=" + appId + " appName=" + appName);
+        android.content.SharedPreferences.Editor ed =
+                getSharedPreferences(LastSessionManager.PREFS_NAME, MODE_PRIVATE).edit();
+
+        ed.putString (LastSessionManager.KEY_HOST,            host);
+        ed.putInt    (LastSessionManager.KEY_PORT,            port);
+        ed.putInt    (LastSessionManager.KEY_HTTPS_PORT,      httpsPort);
+        ed.putString (LastSessionManager.KEY_APP_NAME,        appName);
+        ed.putString (LastSessionManager.KEY_APP_UUID,        appUUID);
+        ed.putInt    (LastSessionManager.KEY_APP_ID,          appId);
+        ed.putString (LastSessionManager.KEY_PC_UUID,         getIntent().getStringExtra(EXTRA_PC_UUID));
+        ed.putString (LastSessionManager.KEY_PC_NAME,         pcName);
+        ed.putBoolean(LastSessionManager.KEY_APP_HDR,         app != null && app.isHdrSupported());
+        ed.putString (LastSessionManager.KEY_UNIQUE_ID,       uniqueId);
+        ed.putBoolean(LastSessionManager.KEY_VDISPLAY,        vDisplay);
+        ed.putInt    (LastSessionManager.KEY_DISPLAY_ID,      getIntent().getIntExtra(EXTRA_DISPLAY_ID, 0));
+
+        if (serverCert != null) {
+            try {
+                ed.putString(LastSessionManager.KEY_SERVER_CERT,
+                        android.util.Base64.encodeToString(serverCert.getEncoded(),
+                                android.util.Base64.DEFAULT));
+            } catch (Exception ignored) {}
+        }
+        if (serverCommands != null) {
+            ed.putString(LastSessionManager.KEY_SERVER_COMMANDS,
+                    new org.json.JSONArray(serverCommands).toString());
+        }
+
+        ed.apply();
+    }
+
     public void disconnect() {
+        LastSessionManager.clear(this);
         if (prefConfig.smartClipboardSync) {
             getClipboard(-1);
         }
@@ -4230,6 +4274,7 @@ public class Game extends AppCompatActivity implements SurfaceHolder.Callback,
         builder.setMessage(R.string.game_dialog_message_quit_confirm);
 
         builder.setPositiveButton(getString(R.string.yes), (dialog, which) -> {
+            LastSessionManager.clear(Game.this);
             quitOnStop = true;
             dialog.dismiss();
             finish();

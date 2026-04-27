@@ -26,6 +26,7 @@ import com.limelight.ui.AdapterFragment;
 import com.limelight.ui.AdapterFragmentCallbacks;
 import com.limelight.utils.Dialog;
 import com.limelight.utils.HelpLauncher;
+import com.limelight.utils.LastSessionManager;
 import com.limelight.utils.ServerHelper;
 import com.limelight.utils.ShortcutHelper;
 import com.limelight.utils.UiHelper;
@@ -59,6 +60,8 @@ import android.widget.EditText;
 import android.widget.ImageButton;
 import android.widget.LinearLayout;
 import android.widget.RelativeLayout;
+import android.widget.ScrollView;
+import android.widget.TextView;
 import android.widget.Toast;
 import android.widget.AdapterView.AdapterContextMenuInfo;
 
@@ -164,6 +167,10 @@ public class PcView extends AppCompatActivity implements AdapterFragmentCallback
             public void onClick(View v) {
                 startActivity(new Intent(PcView.this, StreamSettings.class));
             }
+        });
+        settingsButton.setOnLongClickListener(v -> {
+            showDebugLogDialog();
+            return true;
         });
         addComputerButton.setOnClickListener(new OnClickListener() {
             @Override
@@ -378,6 +385,55 @@ public class PcView extends AppCompatActivity implements AdapterFragmentCallback
 
         inForeground = true;
         startComputerUpdates();
+
+        checkAndReconnectLastSession();
+    }
+
+    private void checkAndReconnectLastSession() {
+        LimeLog.info("PcView.checkAndReconnectLastSession: checking for saved session");
+        android.content.Intent intent = LastSessionManager.buildReconnectIntent(this);
+        if (intent == null) return;
+        LimeLog.info("PcView.checkAndReconnectLastSession: relaunching Game");
+        LastSessionManager.clear(this);
+        startActivity(intent);
+    }
+
+    private void showDebugLogDialog() {
+        java.util.List<String> logs = LimeLog.getRecentLogs();
+
+        TextView tv = new TextView(this);
+        tv.setTextSize(11);
+        tv.setTypeface(android.graphics.Typeface.MONOSPACE);
+        tv.setPadding(16, 16, 16, 16);
+        if (logs.isEmpty()) {
+            tv.setText("(로그 없음)");
+        } else {
+            StringBuilder sb = new StringBuilder();
+            for (String line : logs) {
+                sb.append(line).append('\n');
+            }
+            tv.setText(sb.toString());
+        }
+
+        ScrollView scroll = new ScrollView(this);
+        scroll.addView(tv);
+        // 다이얼로그가 열리면 최신 로그(맨 아래)로 스크롤
+        scroll.post(() -> scroll.fullScroll(View.FOCUS_DOWN));
+
+        new AlertDialog.Builder(this)
+                .setTitle("Debug Logs")
+                .setView(scroll)
+                .setPositiveButton("닫기", null)
+                .setNeutralButton("복사", (d, w) -> {
+                    android.content.ClipboardManager cm =
+                            (android.content.ClipboardManager) getSystemService(Context.CLIPBOARD_SERVICE);
+                    if (cm != null) {
+                        cm.setPrimaryClip(android.content.ClipData.newPlainText("LimeLog", tv.getText()));
+                        Toast.makeText(this, "클립보드에 복사됨", Toast.LENGTH_SHORT).show();
+                    }
+                })
+                .setNegativeButton("지우기", (d, w) -> LimeLog.clearLogs())
+                .show();
     }
 
     @Override

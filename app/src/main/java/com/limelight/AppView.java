@@ -19,6 +19,7 @@ import com.limelight.ui.AdapterFragment;
 import com.limelight.ui.AdapterFragmentCallbacks;
 import com.limelight.utils.CacheHelper;
 import com.limelight.utils.Dialog;
+import com.limelight.utils.LastSessionManager;
 import com.limelight.utils.ServerHelper;
 import com.limelight.utils.ShortcutHelper;
 import com.limelight.utils.SpinnerDialog;
@@ -398,6 +399,8 @@ public class AppView extends AppCompatActivity implements AdapterFragmentCallbac
         inForeground = true;
         startComputerUpdates();
 
+        checkAndReconnectLastSession();
+
         ExtendedFloatingActionButton profilesButton = findViewById(R.id.profilesButton);
         // User report Samsung and Xiaomi devices have this problem
         // Why just these two brands have the most problems?
@@ -411,6 +414,15 @@ public class AppView extends AppCompatActivity implements AdapterFragmentCallbac
             profilesButton.setText(activeProfileName);
             profilesButton.extend();
         }
+    }
+
+    private void checkAndReconnectLastSession() {
+        LimeLog.info("AppView.checkAndReconnectLastSession: checking for saved session");
+        android.content.Intent intent = LastSessionManager.buildReconnectIntent(this);
+        if (intent == null) return;
+        LimeLog.info("AppView.checkAndReconnectLastSession: relaunching Game");
+        LastSessionManager.clear(this);
+        startActivity(intent);
     }
 
     @Override
