@@ -101,6 +101,11 @@ public class LastSessionManager {
         return intent;
     }
 
+    /** Returns true if a saved session exists. Cheaper than buildReconnectIntent(). */
+    public static boolean hasSession(Context context) {
+        return prefs(context).getString(KEY_HOST, null) != null;
+    }
+
     /** Removes the saved session. Call on explicit disconnect, quit, or back. */
     public static void clear(Context context) {
         LimeLog.info("LastSessionManager: session cleared");

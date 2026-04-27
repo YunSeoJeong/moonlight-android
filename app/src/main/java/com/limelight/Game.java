@@ -1744,6 +1744,32 @@ public class Game extends AppCompatActivity implements SurfaceHolder.Callback,
     }
 
     @Override
+    protected void onResume() {
+        super.onResume();
+        // Handle direct foreground restoration (e.g., power button lock/unlock) that bypasses
+        // AppView and its checkAndReconnectLastSession() call.
+        // Game uses launchMode=singleTask, so a plain finish() may drop to the home screen
+        // instead of AppView/PcView. Relaunch Game directly with FLAG_ACTIVITY_CLEAR_TASK to
+        // wipe stale state (NvConnection, decoder, etc.) and start a fresh connection.
+        // Guards:
+        //   attemptedConnection — avoid relaunching before the first connection attempt starts
+        //   !connecting        — avoid relaunching during an active connection attempt
+        //   !isFinishing()     — avoid double-launch (disconnect/quit already called finish())
+        if (attemptedConnection && !connected && !connecting && !isFinishing()
+                && LastSessionManager.hasSession(this)) {
+            Intent reconnectIntent = LastSessionManager.buildReconnectIntent(this);
+            if (reconnectIntent != null) {
+                LimeLog.info("Game.onResume: relaunching Game for auto-reconnect");
+                // Session will be re-saved on connectionStarted() in the new instance
+                LastSessionManager.clear(this);
+                reconnectIntent.addFlags(
+                        Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK);
+                startActivity(reconnectIntent);
+            }
+        }
+    }
+
+    @Override
     protected void onPause() {
         if (isFinishing()) {
             // Stop any further input device notifications before we lose focus (and pointer capture)
@@ -1763,11 +1789,6 @@ public class Game extends AppCompatActivity implements SurfaceHolder.Callback,
         super.onStop();
 
         LimeLog.info("Game.onStop: isFinishing=" + isFinishing() + " connected=" + connected);
-        if (!isFinishing()) {
-            saveLastSession();
-        } else {
-            LimeLog.info("Game.onStop: skipping session save (explicit finish)");
-        }
 
         SpinnerDialog.closeDialogs(this);
         Dialog.closeDialogs();
@@ -3680,6 +3701,10 @@ public class Game extends AppCompatActivity implements SurfaceHolder.Callback,
                 connecting = false;
                 updatePipAutoEnter();
 
+                // Persist session so the app can auto-reconnect if the user backgrounds it.
+                // Cleared only on explicit Quit Remote (quit()) — not on disconnect or back.
+                saveLastSession();
+
                 // Hide the mouse cursor now after a short delay.
                 // Doing it before dismissing the spinner seems to be undone
                 // when the spinner gets displayed. On Android Q, even now
@@ -3983,7 +4008,6 @@ public class Game extends AppCompatActivity implements SurfaceHolder.Callback,
             showGameMenu(null);
             return;
         }
-        LastSessionManager.clear(this);
         super.onBackPressed();
     }
 
@@ -4255,7 +4279,8 @@ public class Game extends AppCompatActivity implements SurfaceHolder.Callback,
     }
 
     public void disconnect() {
-        LastSessionManager.clear(this);
+        // Do NOT clear the session — user may want to reconnect later.
+        // Session is only cleared in quit() when the user explicitly quits the remote.
         if (prefConfig.smartClipboardSync) {
             getClipboard(-1);
         }
