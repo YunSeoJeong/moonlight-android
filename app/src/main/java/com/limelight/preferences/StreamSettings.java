@@ -50,6 +50,7 @@ import com.limelight.GameMenu;
 import com.limelight.LimeLog;
 import com.limelight.PcView;
 import com.limelight.R;
+import com.limelight.binding.input.virtual_controller.WebGamepadLayoutLoader;
 import com.limelight.binding.input.virtual_controller.keyboard.KeyBoardControllerConfigurationLoader;
 import com.limelight.binding.video.MediaCodecHelper;
 import com.limelight.utils.Dialog;
@@ -757,6 +758,32 @@ public class StreamSettings extends AppCompatActivity {
                 });
             }
 
+            _pref = findPreference("import_gamepad_layout_file");
+            if (_pref != null) {
+                _pref.setOnPreferenceClickListener(new Preference.OnPreferenceClickListener() {
+                    @Override
+                    public boolean onPreferenceClick(Preference preference) {
+                        Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT);
+                        intent.addCategory(Intent.CATEGORY_OPENABLE);
+                        intent.setType("application/json");
+                        startActivityForResult(intent, READ_REQUEST_GAMEPAD_LAYOUT_CODE);
+                        return false;
+                    }
+                });
+            }
+
+            _pref = findPreference("clear_imported_gamepad_layout");
+            if (_pref != null) {
+                _pref.setOnPreferenceClickListener(preference -> {
+                    if (WebGamepadLayoutLoader.clearImportedLayout(requireActivity())) {
+                        Toast.makeText(getActivity(), getString(R.string.pref_gamepad_layout_cleared), Toast.LENGTH_SHORT).show();
+                    } else {
+                        Toast.makeText(getActivity(), getString(R.string.pref_error_occurred), Toast.LENGTH_SHORT).show();
+                    }
+                    return false;
+                });
+            }
+
             _pref = findPreference("import_special_button_file");
             if (_pref != null) {
                 _pref.setOnPreferenceClickListener(new Preference.OnPreferenceClickListener() {
@@ -964,6 +991,7 @@ public class StreamSettings extends AppCompatActivity {
 
         int READ_REQUEST_CODE = 1001;
         int READ_REQUEST_SPECIAL_CODE = 1002;
+        int READ_REQUEST_GAMEPAD_LAYOUT_CODE = 1003;
 
         @Override
         public void onActivityResult(int requestCode, int resultCode, Intent data) {
@@ -987,6 +1015,23 @@ public class StreamSettings extends AppCompatActivity {
                         prefEditor.putString(key, value);
                     }
                     prefEditor.apply();
+                    Toast.makeText(getActivity(), getString(R.string.pref_import_success), Toast.LENGTH_SHORT).show();
+                } catch (Exception e) {
+                    e.printStackTrace();
+                    Toast.makeText(getActivity(), getString(R.string.pref_error_occurred) + e.getMessage(), Toast.LENGTH_SHORT).show();
+                }
+                return;
+            }
+
+            if (requestCode == READ_REQUEST_GAMEPAD_LAYOUT_CODE && resultCode == Activity.RESULT_OK && data.getData() != null) {
+                try {
+                    Uri uri = data.getData();
+                    String json = FileUriUtils.openUriForRead(getActivity(), uri);
+                    if (TextUtils.isEmpty(json)) {
+                        Toast.makeText(getActivity(), getString(R.string.pref_empty_file), Toast.LENGTH_SHORT).show();
+                        return;
+                    }
+                    WebGamepadLayoutLoader.saveImportedLayout(requireActivity(), json);
                     Toast.makeText(getActivity(), getString(R.string.pref_import_success), Toast.LENGTH_SHORT).show();
                 } catch (Exception e) {
                     e.printStackTrace();

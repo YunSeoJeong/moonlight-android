@@ -206,11 +206,13 @@ public class VirtualController {
         params.topMargin = 15;
         frame_layout.addView(buttonConfigure, params);
 
-        // Start with the default layout
-        VirtualControllerConfigurationLoader.createDefaultLayout(this, context);
+        if (!WebGamepadLayoutLoader.loadIfAvailable(this, context)) {
+            // Start with the default layout
+            VirtualControllerConfigurationLoader.createDefaultLayout(this, context);
 
-        // Apply user preferences onto the default layout
-        VirtualControllerConfigurationLoader.loadFromPreferences(this, context);
+            // Apply user preferences onto the default layout
+            VirtualControllerConfigurationLoader.loadFromPreferences(this, context);
+        }
     }
 
     public ControllerMode getControllerMode() {

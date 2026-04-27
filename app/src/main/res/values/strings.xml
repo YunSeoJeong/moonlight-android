@@ -271,6 +271,11 @@
     <string name="summary_show_guide_button">Show the guide button on screen</string>
     <string name="title_reset_osc">Clear saved on-screen controls layout</string>
     <string name="summary_reset_osc">Resets all on-screen controls to their default size and position</string>
+    <string name="title_import_gamepad_layout">Import gamepad layout</string>
+    <string name="summary_import_gamepad_layout">Import a virtual gamepad layout JSON exported from the editor. This will replace the imported layout.</string>
+    <string name="title_clear_imported_gamepad_layout">Clear imported gamepad layout</string>
+    <string name="summary_clear_imported_gamepad_layout">Use the bundled/default on-screen controls layout again.</string>
+    <string name="pref_gamepad_layout_cleared">Imported gamepad layout cleared.</string>
     <string name="dialog_title_reset_osc">Reset Layout</string>
     <string name="dialog_text_reset_osc">Are you sure you want to delete your saved on-screen controls layout?</string>
     <string name="toast_reset_osc_success">On-screen controls reset to default</string>

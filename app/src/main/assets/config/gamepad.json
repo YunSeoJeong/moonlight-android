@@ -1,0 +1,251 @@
+{
+  "version": "1.1",
+  "meta": {
+    "name": "",
+    "description": "",
+    "version": "1.1"
+  },
+  "resolutions": [
+    {
+      "width": 1920,
+      "height": 1080,
+      "components": [],
+      "mouseRegions": []
+    },
+    {
+      "width": 2160,
+      "height": 1856,
+      "components": [
+        {
+          "id": "c_moh9d2by_3",
+          "type": "stick",
+          "originalType": "stick",
+          "subtype": "normal",
+          "label": "◉",
+          "rect": {
+            "x": 160,
+            "y": 1240,
+            "w": 300,
+            "h": 300
+          },
+          "style": {
+            "shape": "circle",
+            "color": null,
+            "bg": null,
+            "mouseIgnore": true
+          },
+          "runtime": {
+            "inputType": "keyboard",
+            "deadzone": 0.15,
+            "fixed": true,
+            "mode": "analog",
+            "binding": {
+              "axisX": "LeftStickX",
+              "axisY": "LeftStickY"
+            },
+            "range": [
+              -1,
+              1
+            ],
+            "multiTouch": true,
+            "touchIdPolicy": "lockUntilRelease",
+            "z": 0,
+            "bindings": {
+              "up": "KeyW",
+              "down": "KeyS",
+              "left": "KeyA",
+              "right": "KeyD"
+            }
+          },
+          "editor": {
+            "locked": false
+          },
+          "inputType": "keyboard",
+          "binding": "",
+          "x": 160,
+          "y": 1240,
+          "w": 300,
+          "h": 300,
+          "shape": "circle",
+          "color": null,
+          "bg": null,
+          "mouseIgnore": true,
+          "locked": false
+        },
+        {
+          "id": "c_moh9e0g3_4",
+          "type": "button",
+          "originalType": "button",
+          "subtype": "normal",
+          "label": "A",
+          "rect": {
+            "x": 1770,
+            "y": 1280,
+            "w": 160,
+            "h": 160
+          },
+          "style": {
+            "shape": "circle",
+            "color": null,
+            "bg": null,
+            "mouseIgnore": false
+          },
+          "runtime": {
+            "inputType": "mouse",
+            "behavior": "hold",
+            "binding": {
+              "button": "MouseLeft"
+            },
+            "multiTouch": true,
+            "touchIdPolicy": "lockUntilRelease",
+            "z": 0
+          },
+          "editor": {
+            "locked": false
+          },
+          "inputType": "mouse",
+          "binding": "",
+          "x": 1770,
+          "y": 1280,
+          "w": 160,
+          "h": 160,
+          "shape": "circle",
+          "color": null,
+          "bg": null,
+          "mouseIgnore": false,
+          "locked": false
+        },
+        {
+          "id": "c_moh9fhaa_6",
+          "type": "button",
+          "originalType": "button",
+          "subtype": "normal",
+          "label": "_",
+          "rect": {
+            "x": 1980,
+            "y": 1190,
+            "w": 120,
+            "h": 120
+          },
+          "style": {
+            "shape": "circle",
+            "color": null,
+            "bg": null,
+            "mouseIgnore": true
+          },
+          "runtime": {
+            "inputType": "keyboard",
+            "behavior": "hold",
+            "binding": {
+              "key": "Space"
+            },
+            "multiTouch": true,
+            "touchIdPolicy": "lockUntilRelease",
+            "z": 0
+          },
+          "editor": {
+            "locked": false
+          },
+          "inputType": "keyboard",
+          "binding": "",
+          "x": 1980,
+          "y": 1190,
+          "w": 120,
+          "h": 120,
+          "shape": "circle",
+          "color": null,
+          "bg": null,
+          "mouseIgnore": true,
+          "locked": false
+        },
+        {
+          "id": "c_moh9ganq_7",
+          "type": "button",
+          "originalType": "button",
+          "subtype": "normal",
+          "label": "S",
+          "rect": {
+            "x": 1980,
+            "y": 1400,
+            "w": 120,
+            "h": 120
+          },
+          "style": {
+            "shape": "circle",
+            "color": null,
+            "bg": null,
+            "mouseIgnore": true
+          },
+          "runtime": {
+            "inputType": "keyboard",
+            "behavior": "hold",
+            "binding": {
+              "key": "ShiftLeft"
+            },
+            "multiTouch": true,
+            "touchIdPolicy": "lockUntilRelease",
+            "z": 0
+          },
+          "editor": {
+            "locked": false
+          },
+          "inputType": "keyboard",
+          "binding": "",
+          "x": 1980,
+          "y": 1400,
+          "w": 120,
+          "h": 120,
+          "shape": "circle",
+          "color": null,
+          "bg": null,
+          "mouseIgnore": true,
+          "locked": false
+        },
+        {
+          "id": "c_moh9ivnu_9",
+          "type": "button",
+          "originalType": "button",
+          "subtype": "normal",
+          "label": "W",
+          "rect": {
+            "x": 1620,
+            "y": 1410,
+            "w": 100,
+            "h": 100
+          },
+          "style": {
+            "shape": "circle",
+            "color": null,
+            "bg": null,
+            "mouseIgnore": true
+          },
+          "runtime": {
+            "inputType": "mouse",
+            "behavior": "hold",
+            "binding": {
+              "button": "MouseMiddle"
+            },
+            "multiTouch": true,
+            "touchIdPolicy": "lockUntilRelease",
+            "z": 0
+          },
+          "editor": {
+            "locked": false
+          },
+          "inputType": "mouse",
+          "binding": "",
+          "x": 1620,
+          "y": 1410,
+          "w": 100,
+          "h": 100,
+          "shape": "circle",
+          "color": null,
+          "bg": null,
+          "mouseIgnore": true,
+          "locked": false
+        }
+      ],
+      "mouseRegions": []
+    }
+  ]
+}
