@@ -63,6 +63,7 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Map;
 
 public class StreamSettings extends AppCompatActivity {
@@ -427,15 +428,17 @@ public class StreamSettings extends AppCompatActivity {
                 category_gamepad_settings.removePreference(findPreference("seekbar_vibrate_fallback_strength"));
             }
 
-            // Check custom resolution
-            String customResStr = prevPrefConfig.customResolution;
-            if(customResStr != null && !customResStr.isEmpty()){
-                String[] resolutionSegments = customResStr.split("x");
-                if(resolutionSegments.length == 2){
-                    try {
-                        addNativeResolutionEntries(Integer.parseInt(resolutionSegments[0]), Integer.parseInt(resolutionSegments[1]), false, true);
-                    } catch (Exception e) {
-                        e.printStackTrace();
+            // Add all custom resolutions to the dropdown
+            List<String> customResList = prevPrefConfig.customResolutions;
+            if (customResList != null) {
+                for (String resStr : customResList) {
+                    String[] seg = resStr.split("x");
+                    if (seg.length == 2) {
+                        try {
+                            addNativeResolutionEntries(Integer.parseInt(seg[0]), Integer.parseInt(seg[1]), false, true);
+                        } catch (Exception e) {
+                            e.printStackTrace();
+                        }
                     }
                 }
             }
@@ -880,44 +883,11 @@ public class StreamSettings extends AppCompatActivity {
                 });
             }
 
-            EditTextPreference resolutionEditPref = findPreference(PreferenceConfiguration.CUSTOM_RESOLUTION_PREF_STRING);
-            if (resolutionEditPref != null) {
-                resolutionEditPref.setOnBindEditTextListener((EditText editText) -> {
-                    editText.setInputType(InputType.TYPE_CLASS_TEXT);
-                    editText.setFilters(new InputFilter[]{new InputFilter.LengthFilter(11)});
-                });
-
-                resolutionEditPref.setOnPreferenceChangeListener((preference, newValue) -> {
-                    String value = (String) newValue;
-                    if (TextUtils.isEmpty(value)) {
-                        Toast.makeText(getActivity(), getString(R.string.pref_enter_value_0_9999), Toast.LENGTH_SHORT).show();
-                        return false;
-                    }
-
-                    // Verify format: [width]x[height]
-                    String[] resolutionSegments = value.split("x");
-                    if (resolutionSegments.length != 2) {
-                        Toast.makeText(getActivity(), getString(R.string.pref_error_occurred), Toast.LENGTH_SHORT).show();
-                        return false;
-                    }
-
-                    try {
-                        int width = Integer.parseInt(resolutionSegments[0]);
-                        int height = Integer.parseInt(resolutionSegments[1]);
-                        
-                        if (width <= 0 || height <= 0) {
-                            Toast.makeText(getActivity(), getString(R.string.pref_error_occurred), Toast.LENGTH_SHORT).show();
-                            return false;
-                        }
-
-                        // Save the value and reload settings
-                        editAndReload(PreferenceConfiguration.CUSTOM_RESOLUTION_PREF_STRING, value);
-
-                        return true;
-                    } catch (NumberFormatException e) {
-                        Toast.makeText(getActivity(), getString(R.string.pref_error_occurred), Toast.LENGTH_SHORT).show();
-                        return false;
-                    }
+            Preference manageResPref = findPreference("manage_custom_resolutions");
+            if (manageResPref != null) {
+                manageResPref.setOnPreferenceClickListener(preference -> {
+                    startActivity(new Intent(getActivity(), CustomResolutionListActivity.class));
+                    return true;
                 });
             }
 

@@ -6,8 +6,13 @@ import android.content.pm.PackageManager;
 import android.os.Build;
 import android.view.Display;
 
+import com.google.gson.Gson;
+import com.google.gson.reflect.TypeToken;
 import com.limelight.nvstream.jni.MoonBridge;
 import com.limelight.profiles.ProfilesManager;
+
+import java.util.ArrayList;
+import java.util.List;
 
 public class PreferenceConfiguration {
 
@@ -32,7 +37,8 @@ public class PreferenceConfiguration {
 
     public static final String CUSTOM_BITRATE_PREF_STRING = "edit_diy_bitrate";
     public static final String CUSTOM_REFRESH_RATE_PREF_STRING = "custom_refresh_rate";
-    public static final String CUSTOM_RESOLUTION_PREF_STRING = "edit_diy_w_h";
+    public static final String CUSTOM_RESOLUTION_PREF_STRING = "edit_diy_w_h"; // kept for migration
+    public static final String CUSTOM_RESOLUTION_LIST_PREF_STRING = "custom_resolution_list";
 
     private static final String LEGACY_RES_FPS_PREF_STRING = "list_resolution_fps";
     private static final String LEGACY_ENABLE_51_SURROUND_PREF_STRING = "checkbox_51_surround";
@@ -232,7 +238,7 @@ public class PreferenceConfiguration {
 //    public String customBitrate;
     public boolean forceTightThresholds = false; // default off
     public boolean enableUltraLowLatency;
-    public String customResolution;
+    public List<String> customResolutions;
     public String customRefreshRate;
     public int meteredBitrate;
     public FormatOption videoFormat;
@@ -490,6 +496,27 @@ public class PreferenceConfiguration {
             case 2160:
                 return RES_4K;
         }
+    }
+
+    public static List<String> getCustomResolutionList(SharedPreferences prefs) {
+        String json = prefs.getString(CUSTOM_RESOLUTION_LIST_PREF_STRING, null);
+        List<String> list = (json != null)
+                ? new Gson().fromJson(json, new TypeToken<List<String>>(){}.getType())
+                : new ArrayList<>();
+        // Migrate legacy single-value key
+        String legacy = prefs.getString(CUSTOM_RESOLUTION_PREF_STRING, null);
+        if (legacy != null && !legacy.isEmpty() && json == null) {
+            list.add(legacy);
+            saveCustomResolutionList(prefs, list);
+            prefs.edit().remove(CUSTOM_RESOLUTION_PREF_STRING).apply();
+        }
+        return list;
+    }
+
+    public static void saveCustomResolutionList(SharedPreferences prefs, List<String> list) {
+        prefs.edit()
+                .putString(CUSTOM_RESOLUTION_LIST_PREF_STRING, new Gson().toJson(list))
+                .apply();
     }
 
     public static int getDefaultBitrate(String resString, String fpsString) {
@@ -1023,7 +1050,7 @@ private static int getFramePacingValue(Context context) {
         config.preventPacketLoss = prefs.getBoolean(PREVENT_PACKET_LOSS_PREF_STRING, DEFAULT_PREVENT_PACKET_LOSS);
 
         // Read custom values
-        config.customResolution = prefs.getString(CUSTOM_RESOLUTION_PREF_STRING, null);
+        config.customResolutions = getCustomResolutionList(prefs);
         config.customRefreshRate = prefs.getString(CUSTOM_REFRESH_RATE_PREF_STRING, null);
 //        config.customBitrate = prefs.getString(CUSTOM_BITRATE_PREF_STRING, null);
 

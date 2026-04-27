@@ -729,4 +729,16 @@
 
     <string name="title_checkbox_full_screen">Enable Full Screen</string>
     <string name="summary_checkbox_full_screen">Hide system bars with immersive mode</string>
+
+    <!-- Custom resolution list management -->
+    <string name="title_manage_custom_resolutions">Manage Custom Resolutions</string>
+    <string name="summary_manage_custom_resolutions">Add, edit, or delete custom resolutions. All entries appear in the resolution selector.</string>
+    <string name="title_custom_resolution_list_activity">Custom Resolutions</string>
+    <string name="add_custom_resolution">Add Resolution</string>
+    <string name="edit_custom_resolution">Edit Resolution</string>
+    <string name="delete_custom_resolution">Delete</string>
+    <string name="confirm_delete_resolution">Delete this resolution?</string>
+    <string name="no_custom_resolutions">No custom resolutions added yet</string>
+    <string name="tap_to_add_resolution">Tap + to add a custom resolution</string>
+    <string name="hint_resolution_input">e.g. 1920x1080</string>
 </resources>
