@@ -291,23 +291,27 @@ public class WebGamepadLayoutLoader {
         if ("stick".equals(type) || "stick".equals(originalType)) {
             element = new WebStick(controller, context, elementId, inputType, runtime, label, shape);
             applyStyle(element, style);
+            applyMouseForwarding(element, component, style);
             return element;
         }
 
         if ("dpad".equals(type) || "dpad".equals(originalType)) {
             element = new WebDpad(controller, context, elementId, inputType, runtime, label, shape);
             applyStyle(element, style);
+            applyMouseForwarding(element, component, style);
             return element;
         }
 
         if ("trigger".equals(type) || "trigger".equals(originalType)) {
             element = new WebButton(controller, context, elementId, inputType, runtime, label, shape, true);
             applyStyle(element, style);
+            applyMouseForwarding(element, component, style);
             return element;
         }
 
         element = new WebButton(controller, context, elementId, inputType, runtime, label, shape, false);
         applyStyle(element, style);
+        applyMouseForwarding(element, component, style);
         return element;
     }
 
@@ -319,14 +323,22 @@ public class WebGamepadLayoutLoader {
         String colorValue = style.optString("color", null);
         String bgValue = style.optString("bg", null);
         if (isEmptyColor(colorValue) && isEmptyColor(bgValue)) {
-            element.setForwardMousePosition(!style.optBoolean("mouseIgnore", true));
             return;
         }
 
         int normalColor = parseColor(colorValue, element.normalColor);
         int fillColor = parseColor(bgValue, Color.TRANSPARENT);
         element.setWebStyle(normalColor, fillColor);
-        element.setForwardMousePosition(!style.optBoolean("mouseIgnore", true));
+    }
+
+    private static void applyMouseForwarding(WebElement element, JSONObject component, JSONObject style) {
+        boolean mouseIgnore = true;
+        if (style != null && style.has("mouseIgnore")) {
+            mouseIgnore = style.optBoolean("mouseIgnore", true);
+        } else if (component.has("mouseIgnore")) {
+            mouseIgnore = component.optBoolean("mouseIgnore", true);
+        }
+        element.setForwardMousePosition(!mouseIgnore);
     }
 
     private static boolean isEmptyColor(String value) {

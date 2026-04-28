@@ -213,6 +213,10 @@ public class Game extends AppCompatActivity implements SurfaceHolder.Callback,
     private boolean pendingDrag = false;
     private boolean isDragging = false;
     private float lastTouchDownX, lastTouchDownY;
+    private int currentMouseMode = 0;
+    private boolean overlayPointerActive = false;
+    private float overlayLastX = 0;
+    private float overlayLastY = 0;
 
     private long lastAbsTouchUpTime = 0;
     private long lastAbsTouchDownTime = 0;
@@ -3436,6 +3440,7 @@ public class Game extends AppCompatActivity implements SurfaceHolder.Callback,
             return;
         }
 
+        int action = event.getActionMasked();
         int[] touchedLocation = new int[2];
         int[] streamLocation = new int[2];
         touchedView.getLocationOnScreen(touchedLocation);
@@ -3447,8 +3452,84 @@ public class Game extends AppCompatActivity implements SurfaceHolder.Callback,
         eventX = Math.min(Math.max(eventX, 0), streamContainer.getWidth());
         eventY = Math.min(Math.max(eventY, 0), streamContainer.getHeight());
 
-        conn.sendMousePosition((short) eventX, (short) eventY,
-                (short) streamContainer.getWidth(), (short) streamContainer.getHeight());
+        switch (currentMouseMode) {
+            case 0:
+                sendOverlayTouchEvent(event, eventX, eventY);
+                break;
+            case 1:
+            case 5:
+                conn.sendMousePosition((short) eventX, (short) eventY,
+                        (short) streamContainer.getWidth(), (short) streamContainer.getHeight());
+                break;
+            case 2:
+            case 3:
+                sendOverlayTrackpadEvent(event, eventX, eventY);
+                break;
+            default:
+                break;
+        }
+    }
+
+    private void sendOverlayTouchEvent(MotionEvent event, float eventX, float eventY) {
+        byte eventType = getLiTouchTypeFromEvent(event);
+        if (eventType < 0) {
+            return;
+        }
+
+        if (eventType == MoonBridge.LI_TOUCH_EVENT_CANCEL_ALL) {
+            conn.sendTouchEvent(MoonBridge.LI_TOUCH_EVENT_CANCEL_ALL, 0,
+                    0, 0, 0, 0, 0,
+                    MoonBridge.LI_ROT_UNKNOWN);
+            return;
+        }
+
+        float normalizedX = streamContainer.getWidth() == 0 ? 0 : eventX / streamContainer.getWidth();
+        float normalizedY = streamContainer.getHeight() == 0 ? 0 : eventY / streamContainer.getHeight();
+
+        float contactMajor = streamContainer.getWidth() == 0 ? 0 :
+                Math.min(event.getTouchMajor(0), streamContainer.getWidth()) / streamContainer.getWidth();
+        float contactMinor = streamContainer.getHeight() == 0 ? 0 :
+                Math.min(event.getTouchMinor(0), streamContainer.getHeight()) / streamContainer.getHeight();
+
+        conn.sendTouchEvent(eventType, event.getPointerId(0),
+                normalizedX, normalizedY,
+                getPressureOrDistance(event, 0),
+                contactMajor, contactMinor,
+                getRotationDegrees(event, 0));
+    }
+
+    private void sendOverlayTrackpadEvent(MotionEvent event, float eventX, float eventY) {
+        switch (event.getActionMasked()) {
+            case MotionEvent.ACTION_DOWN:
+            case MotionEvent.ACTION_POINTER_DOWN:
+                overlayPointerActive = true;
+                overlayLastX = eventX;
+                overlayLastY = eventY;
+                break;
+            case MotionEvent.ACTION_MOVE:
+                if (!overlayPointerActive) {
+                    overlayPointerActive = true;
+                    overlayLastX = eventX;
+                    overlayLastY = eventY;
+                    return;
+                }
+
+                float deltaX = (eventX - overlayLastX) * prefConfig.touchPadSensitivity * 0.01f;
+                float deltaY = (eventY - overlayLastY) * prefConfig.touchPadYSensitity * 0.01f;
+                if (deltaX != 0 || deltaY != 0) {
+                    conn.sendMouseMove((short) deltaX, (short) deltaY);
+                }
+                overlayLastX = eventX;
+                overlayLastY = eventY;
+                break;
+            case MotionEvent.ACTION_UP:
+            case MotionEvent.ACTION_POINTER_UP:
+            case MotionEvent.ACTION_CANCEL:
+                overlayPointerActive = false;
+                break;
+            default:
+                break;
+        }
     }
 
     @Override
@@ -4204,6 +4285,9 @@ public class Game extends AppCompatActivity implements SurfaceHolder.Callback,
     }
 
     private void applyMouseMode(int mode) {
+        currentMouseMode = mode;
+        overlayPointerActive = false;
+
         switch (mode) {
             case 0: // Multi-touch
                 prefConfig.enableMultiTouchScreen = true;
