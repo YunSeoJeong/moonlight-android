@@ -1104,7 +1104,7 @@ public class Game extends AppCompatActivity implements SurfaceHolder.Callback,
     }
 
     private void initVirtualController(){
-        virtualController = new VirtualController(controllerHandler, (FrameLayout)rootView, this);
+        virtualController = new VirtualController(controllerHandler, (FrameLayout)rootView, streamContainer, this);
         virtualController.refreshLayout();
         virtualController.show();
     }

@@ -63,7 +63,7 @@ public class WebGamepadLayoutLoader {
             }
 
             JSONObject root = new JSONObject(json);
-            JSONObject resolution = chooseResolution(root.optJSONArray("resolutions"), context);
+            JSONObject resolution = chooseResolution(root.optJSONArray("resolutions"), controller, context);
             if (resolution == null) {
                 return false;
             }
@@ -75,7 +75,7 @@ public class WebGamepadLayoutLoader {
                 return false;
             }
 
-            float scale = getScale(resolution, context);
+            LayoutTransform transform = getLayoutTransform(resolution, controller, context);
             int added = 0;
 
             List<JSONObject> mouseRegionList = new ArrayList<>();
@@ -109,14 +109,14 @@ public class WebGamepadLayoutLoader {
             Collections.sort(componentList, zComparator);
 
             for (JSONObject region : mouseRegionList) {
-                addMouseRegion(controller, context, region, scale);
+                addMouseRegion(controller, context, region, transform);
                 added++;
             }
 
             for (JSONObject component : componentList) {
                 VirtualControllerElement element = createElement(controller, context, component);
                 if (element != null) {
-                    addElement(controller, element, component, scale);
+                    addElement(controller, element, component, transform);
                     added++;
                 }
             }
@@ -177,12 +177,13 @@ public class WebGamepadLayoutLoader {
         }
     }
 
-    private static JSONObject chooseResolution(JSONArray resolutions, Context context) {
+    private static JSONObject chooseResolution(JSONArray resolutions, VirtualController controller, Context context) {
         if (resolutions == null || resolutions.length() == 0) {
             return null;
         }
 
-        DisplayMetrics screen = context.getResources().getDisplayMetrics();
+        int targetWidth = getTargetWidth(controller, context);
+        int targetHeight = getTargetHeight(controller, context);
         JSONObject best = null;
         long bestScore = Long.MAX_VALUE;
 
@@ -200,8 +201,8 @@ public class WebGamepadLayoutLoader {
                 continue;
             }
 
-            long widthDelta = candidate.optInt("width") - screen.widthPixels;
-            long heightDelta = candidate.optInt("height") - screen.heightPixels;
+            long widthDelta = candidate.optInt("width") - targetWidth;
+            long heightDelta = candidate.optInt("height") - targetHeight;
             long score = widthDelta * widthDelta + heightDelta * heightDelta;
             if (score < bestScore) {
                 bestScore = score;
@@ -212,28 +213,51 @@ public class WebGamepadLayoutLoader {
         return best;
     }
 
-    private static float getScale(JSONObject resolution, Context context) {
+    private static LayoutTransform getLayoutTransform(JSONObject resolution,
+                                                      VirtualController controller,
+                                                      Context context) {
+        int targetWidth = getTargetWidth(controller, context);
+        int targetHeight = getTargetHeight(controller, context);
         DisplayMetrics screen = context.getResources().getDisplayMetrics();
         int sourceWidth = Math.max(1, resolution.optInt("width", screen.widthPixels));
         int sourceHeight = Math.max(1, resolution.optInt("height", screen.heightPixels));
-        return Math.min((float) screen.widthPixels / sourceWidth,
-                (float) screen.heightPixels / sourceHeight);
+        double scale = Math.min((double) targetWidth / sourceWidth,
+                (double) targetHeight / sourceHeight);
+        double offsetX = (targetWidth - sourceWidth * scale) / 2.0;
+        double offsetY = (targetHeight - sourceHeight * scale) / 2.0;
+        return new LayoutTransform(scale, offsetX, offsetY);
+    }
+
+    private static int getTargetWidth(VirtualController controller, Context context) {
+        int width = controller.getLayoutWidth();
+        if (width > 0) {
+            return width;
+        }
+        return context.getResources().getDisplayMetrics().widthPixels;
+    }
+
+    private static int getTargetHeight(VirtualController controller, Context context) {
+        int height = controller.getLayoutHeight();
+        if (height > 0) {
+            return height;
+        }
+        return context.getResources().getDisplayMetrics().heightPixels;
     }
 
     private static void addElement(VirtualController controller, VirtualControllerElement element,
-                                   JSONObject component, float scale) {
+                                   JSONObject component, LayoutTransform transform) {
         JSONObject rect = getRect(component);
         controller.addElement(element,
-                Math.round(rect.optInt("x") * scale),
-                Math.round(rect.optInt("y") * scale),
-                Math.max(20, Math.round(rect.optInt("w", 80) * scale)),
-                Math.max(20, Math.round(rect.optInt("h", 80) * scale)));
+                (int) Math.round(transform.offsetX + rect.optDouble("x") * transform.scale),
+                (int) Math.round(transform.offsetY + rect.optDouble("y") * transform.scale),
+                Math.max(20, (int) Math.round(rect.optDouble("w", 80) * transform.scale)),
+                Math.max(20, (int) Math.round(rect.optDouble("h", 80) * transform.scale)));
     }
 
     private static void addMouseRegion(VirtualController controller, Context context,
-                                       JSONObject component, float scale) {
+                                       JSONObject component, LayoutTransform transform) {
         addElement(controller, new MouseRegionElement(controller, context),
-                component, scale);
+                component, transform);
     }
 
     private static JSONObject getRect(JSONObject component) {
@@ -244,13 +268,25 @@ public class WebGamepadLayoutLoader {
 
         JSONObject fallback = new JSONObject();
         try {
-            fallback.put("x", component.optInt("x"));
-            fallback.put("y", component.optInt("y"));
-            fallback.put("w", component.optInt("w", 80));
-            fallback.put("h", component.optInt("h", 80));
+            fallback.put("x", component.optDouble("x"));
+            fallback.put("y", component.optDouble("y"));
+            fallback.put("w", component.optDouble("w", 80));
+            fallback.put("h", component.optDouble("h", 80));
         } catch (JSONException ignored) {
         }
         return fallback;
+    }
+
+    private static class LayoutTransform {
+        final double scale;
+        final double offsetX;
+        final double offsetY;
+
+        LayoutTransform(double scale, double offsetX, double offsetY) {
+            this.scale = scale;
+            this.offsetX = offsetX;
+            this.offsetY = offsetY;
+        }
     }
 
     private static boolean isMouseRegion(JSONObject component) {

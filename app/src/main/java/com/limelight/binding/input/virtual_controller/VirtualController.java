@@ -49,6 +49,7 @@ public class VirtualController {
     private final ControllerHandler controllerHandler;
     private final Context context;
     private final Handler handler;
+    private final View referenceView;
 
     private final Runnable delayedRetransmitRunnable = new Runnable() {
         @Override
@@ -65,14 +66,21 @@ public class VirtualController {
     private Button buttonConfigure = null;
 
     private List<VirtualControllerElement> elements = new ArrayList<>();
+    private boolean refreshPending;
 
     private Vibrator vibrator;
 
     private final VibrationEffect defaultVibrationEffect;
 
     public VirtualController(final ControllerHandler controllerHandler, FrameLayout layout, final Context context) {
+        this(controllerHandler, layout, null, context);
+    }
+
+    public VirtualController(final ControllerHandler controllerHandler, FrameLayout layout,
+                             View referenceView, final Context context) {
         this.controllerHandler = controllerHandler;
         this.frame_layout = layout;
+        this.referenceView = referenceView;
         this.context = context;
         this.handler = new Handler(Looper.getMainLooper());
 
@@ -180,9 +188,41 @@ public class VirtualController {
     public void addElement(VirtualControllerElement element, int x, int y, int width, int height) {
         elements.add(element);
         FrameLayout.LayoutParams layoutParams = new FrameLayout.LayoutParams(width, height);
-        layoutParams.setMargins(x, y, 0, 0);
+        layoutParams.setMargins(x + getLayoutOffsetX(), y + getLayoutOffsetY(), 0, 0);
 
         frame_layout.addView(element, layoutParams);
+    }
+
+    int getLayoutWidth() {
+        View layoutView = referenceView != null ? referenceView : frame_layout;
+        return layoutView != null ? Math.max(layoutView.getWidth(), layoutView.getMeasuredWidth()) : 0;
+    }
+
+    int getLayoutHeight() {
+        View layoutView = referenceView != null ? referenceView : frame_layout;
+        return layoutView != null ? Math.max(layoutView.getHeight(), layoutView.getMeasuredHeight()) : 0;
+    }
+
+    private int getLayoutOffsetX() {
+        if (frame_layout == null || referenceView == null) {
+            return 0;
+        }
+        int[] parentLocation = new int[2];
+        int[] referenceLocation = new int[2];
+        frame_layout.getLocationOnScreen(parentLocation);
+        referenceView.getLocationOnScreen(referenceLocation);
+        return referenceLocation[0] - parentLocation[0];
+    }
+
+    private int getLayoutOffsetY() {
+        if (frame_layout == null || referenceView == null) {
+            return 0;
+        }
+        int[] parentLocation = new int[2];
+        int[] referenceLocation = new int[2];
+        frame_layout.getLocationOnScreen(parentLocation);
+        referenceView.getLocationOnScreen(referenceLocation);
+        return referenceLocation[1] - parentLocation[1];
     }
 
     public List<VirtualControllerElement> getElements() {
@@ -196,6 +236,20 @@ public class VirtualController {
     }
 
     public void refreshLayout() {
+        if (getLayoutWidth() <= 0 || getLayoutHeight() <= 0) {
+            if (!refreshPending && frame_layout != null) {
+                refreshPending = true;
+                frame_layout.post(new Runnable() {
+                    @Override
+                    public void run() {
+                        refreshPending = false;
+                        refreshLayout();
+                    }
+                });
+            }
+            return;
+        }
+
         removeElements();
 
         DisplayMetrics screen = context.getResources().getDisplayMetrics();
