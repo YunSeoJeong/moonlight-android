@@ -3431,6 +3431,26 @@ public class Game extends AppCompatActivity implements SurfaceHolder.Callback,
         conn.sendMousePosition((short)eventX, (short)eventY, (short) streamContainer.getWidth(), (short) streamContainer.getHeight());
     }
 
+    public void updateMousePositionFromOverlay(View touchedView, MotionEvent event) {
+        if (conn == null || streamContainer == null || touchedView == null || event.getPointerCount() == 0) {
+            return;
+        }
+
+        int[] touchedLocation = new int[2];
+        int[] streamLocation = new int[2];
+        touchedView.getLocationOnScreen(touchedLocation);
+        streamContainer.getLocationOnScreen(streamLocation);
+
+        float eventX = touchedLocation[0] - streamLocation[0] + event.getX(0);
+        float eventY = touchedLocation[1] - streamLocation[1] + event.getY(0);
+
+        eventX = Math.min(Math.max(eventX, 0), streamContainer.getWidth());
+        eventY = Math.min(Math.max(eventY, 0), streamContainer.getHeight());
+
+        conn.sendMousePosition((short) eventX, (short) eventY,
+                (short) streamContainer.getWidth(), (short) streamContainer.getHeight());
+    }
+
     @Override
     public boolean onGenericMotion(View view, MotionEvent event) {
         return handleMotionEvent(view, event);

@@ -25,6 +25,10 @@ import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Comparator;
+import java.util.List;
 import java.util.Locale;
 
 public class WebGamepadLayoutLoader {
@@ -74,12 +78,19 @@ public class WebGamepadLayoutLoader {
             float scale = getScale(resolution, context);
             int added = 0;
 
+            List<JSONObject> mouseRegionList = new ArrayList<>();
+            List<JSONObject> componentList = new ArrayList<>();
+
             if (components != null) {
                 for (int i = 0; i < components.length(); i++) {
                     JSONObject component = components.optJSONObject(i);
-                    if (component != null && isMouseRegion(component)) {
-                        addMouseRegion(controller, context, component, scale);
-                        added++;
+                    if (component == null) {
+                        continue;
+                    }
+                    if (isMouseRegion(component)) {
+                        mouseRegionList.add(component);
+                    } else {
+                        componentList.add(component);
                     }
                 }
             }
@@ -88,23 +99,25 @@ public class WebGamepadLayoutLoader {
                 for (int i = 0; i < mouseRegions.length(); i++) {
                     JSONObject region = mouseRegions.optJSONObject(i);
                     if (region != null) {
-                        addMouseRegion(controller, context, region, scale);
-                        added++;
+                        mouseRegionList.add(region);
                     }
                 }
             }
 
-            if (components != null) {
-                for (int i = 0; i < components.length(); i++) {
-                    JSONObject component = components.optJSONObject(i);
-                    if (component == null || isMouseRegion(component)) {
-                        continue;
-                    }
-                    VirtualControllerElement element = createElement(controller, context, component);
-                    if (element != null) {
-                        addElement(controller, element, component, scale);
-                        added++;
-                    }
+            Comparator<JSONObject> zComparator = Comparator.comparingInt(WebGamepadLayoutLoader::getZ);
+            Collections.sort(mouseRegionList, zComparator);
+            Collections.sort(componentList, zComparator);
+
+            for (JSONObject region : mouseRegionList) {
+                addMouseRegion(controller, context, region, scale);
+                added++;
+            }
+
+            for (JSONObject component : componentList) {
+                VirtualControllerElement element = createElement(controller, context, component);
+                if (element != null) {
+                    addElement(controller, element, component, scale);
+                    added++;
                 }
             }
 
@@ -248,6 +261,14 @@ public class WebGamepadLayoutLoader {
                 (runtime != null && "mouseFilter".equals(runtime.optString("role")));
     }
 
+    private static int getZ(JSONObject component) {
+        JSONObject runtime = component.optJSONObject("runtime");
+        if (runtime != null) {
+            return runtime.optInt("z", component.optInt("z", 0));
+        }
+        return component.optInt("z", 0);
+    }
+
     private static VirtualControllerElement createElement(final VirtualController controller,
                                                           final Context context,
                                                           JSONObject component) {
@@ -265,16 +286,62 @@ public class WebGamepadLayoutLoader {
                 : component.optString("shape", "circle");
 
         int elementId = component.optString("id", type + ":" + label).hashCode();
+        WebElement element;
 
         if ("stick".equals(type) || "stick".equals(originalType)) {
-            return new WebStick(controller, context, elementId, inputType, runtime, label, shape);
+            element = new WebStick(controller, context, elementId, inputType, runtime, label, shape);
+            applyStyle(element, style);
+            return element;
+        }
+
+        if ("dpad".equals(type) || "dpad".equals(originalType)) {
+            element = new WebDpad(controller, context, elementId, inputType, runtime, label, shape);
+            applyStyle(element, style);
+            return element;
         }
 
         if ("trigger".equals(type) || "trigger".equals(originalType)) {
-            return new WebButton(controller, context, elementId, inputType, runtime, label, shape, true);
+            element = new WebButton(controller, context, elementId, inputType, runtime, label, shape, true);
+            applyStyle(element, style);
+            return element;
         }
 
-        return new WebButton(controller, context, elementId, inputType, runtime, label, shape, false);
+        element = new WebButton(controller, context, elementId, inputType, runtime, label, shape, false);
+        applyStyle(element, style);
+        return element;
+    }
+
+    private static void applyStyle(WebElement element, JSONObject style) {
+        if (style == null) {
+            return;
+        }
+
+        String colorValue = style.optString("color", null);
+        String bgValue = style.optString("bg", null);
+        if (isEmptyColor(colorValue) && isEmptyColor(bgValue)) {
+            element.setForwardMousePosition(!style.optBoolean("mouseIgnore", true));
+            return;
+        }
+
+        int normalColor = parseColor(colorValue, element.normalColor);
+        int fillColor = parseColor(bgValue, Color.TRANSPARENT);
+        element.setWebStyle(normalColor, fillColor);
+        element.setForwardMousePosition(!style.optBoolean("mouseIgnore", true));
+    }
+
+    private static boolean isEmptyColor(String value) {
+        return value == null || value.trim().isEmpty() || "null".equals(value);
+    }
+
+    private static int parseColor(String value, int fallback) {
+        if (value == null || value.trim().isEmpty() || "null".equals(value)) {
+            return fallback;
+        }
+        try {
+            return Color.parseColor(value.trim());
+        } catch (IllegalArgumentException e) {
+            return fallback;
+        }
     }
 
     private static int parseControllerFlag(String binding, String label) {
@@ -294,10 +361,12 @@ public class WebGamepadLayoutLoader {
                 return ControllerPacket.Y_FLAG;
             case "lb":
             case "l1":
+            case "leftshoulder":
             case "leftbumper":
                 return ControllerPacket.LB_FLAG;
             case "rb":
             case "r1":
+            case "rightshoulder":
             case "rightbumper":
                 return ControllerPacket.RB_FLAG;
             case "back":
@@ -331,6 +400,13 @@ public class WebGamepadLayoutLoader {
             case "dpadright":
             case "right":
                 return ControllerPacket.RIGHT_FLAG;
+            case "lt":
+            case "l2":
+            case "lefttrigger":
+            case "rt":
+            case "r2":
+            case "righttrigger":
+                return 0;
             default:
                 return 0;
         }
@@ -354,12 +430,35 @@ public class WebGamepadLayoutLoader {
             case "x2":
                 return EvdevListener.BUTTON_X2;
             default:
-                return EvdevListener.BUTTON_LEFT;
+                return 0;
         }
     }
 
     private static int parseAndroidKey(String value) {
-        switch (normalize(value)) {
+        String normalized = normalize(value);
+        if (normalized.startsWith("digit") && normalized.length() == 6) {
+            char digit = normalized.charAt(5);
+            if (digit >= '0' && digit <= '9') {
+                return KeyEvent.KEYCODE_0 + (digit - '0');
+            }
+        }
+        if (normalized.length() >= 2 && normalized.charAt(0) == 'f') {
+            try {
+                int fKey = Integer.parseInt(normalized.substring(1));
+                if (fKey >= 1 && fKey <= 12) {
+                    return KeyEvent.KEYCODE_F1 + fKey - 1;
+                }
+            } catch (NumberFormatException ignored) {
+            }
+        }
+        if (normalized.startsWith("numpad") && normalized.length() == 7) {
+            char digit = normalized.charAt(6);
+            if (digit >= '0' && digit <= '9') {
+                return KeyEvent.KEYCODE_NUMPAD_0 + (digit - '0');
+            }
+        }
+
+        switch (normalized) {
             case "keya": return KeyEvent.KEYCODE_A;
             case "keyb": return KeyEvent.KEYCODE_B;
             case "keyc": return KeyEvent.KEYCODE_C;
@@ -395,7 +494,36 @@ public class WebGamepadLayoutLoader {
             case "altright": return KeyEvent.KEYCODE_ALT_RIGHT;
             case "escape": return KeyEvent.KEYCODE_ESCAPE;
             case "enter": return KeyEvent.KEYCODE_ENTER;
+            case "numpadenter": return KeyEvent.KEYCODE_NUMPAD_ENTER;
             case "tab": return KeyEvent.KEYCODE_TAB;
+            case "backspace": return KeyEvent.KEYCODE_DEL;
+            case "delete": return KeyEvent.KEYCODE_FORWARD_DEL;
+            case "insert": return KeyEvent.KEYCODE_INSERT;
+            case "home": return KeyEvent.KEYCODE_MOVE_HOME;
+            case "end": return KeyEvent.KEYCODE_MOVE_END;
+            case "pageup": return KeyEvent.KEYCODE_PAGE_UP;
+            case "pagedown": return KeyEvent.KEYCODE_PAGE_DOWN;
+            case "arrowup": return KeyEvent.KEYCODE_DPAD_UP;
+            case "arrowdown": return KeyEvent.KEYCODE_DPAD_DOWN;
+            case "arrowleft": return KeyEvent.KEYCODE_DPAD_LEFT;
+            case "arrowright": return KeyEvent.KEYCODE_DPAD_RIGHT;
+            case "backquote": return KeyEvent.KEYCODE_GRAVE;
+            case "minus": return KeyEvent.KEYCODE_MINUS;
+            case "equal": return KeyEvent.KEYCODE_EQUALS;
+            case "bracketleft": return KeyEvent.KEYCODE_LEFT_BRACKET;
+            case "bracketright": return KeyEvent.KEYCODE_RIGHT_BRACKET;
+            case "backslash": return KeyEvent.KEYCODE_BACKSLASH;
+            case "semicolon": return KeyEvent.KEYCODE_SEMICOLON;
+            case "quote": return KeyEvent.KEYCODE_APOSTROPHE;
+            case "comma": return KeyEvent.KEYCODE_COMMA;
+            case "period": return KeyEvent.KEYCODE_PERIOD;
+            case "slash": return KeyEvent.KEYCODE_SLASH;
+            case "capslock": return KeyEvent.KEYCODE_CAPS_LOCK;
+            case "numpaddivide": return KeyEvent.KEYCODE_NUMPAD_DIVIDE;
+            case "numpadmultiply": return KeyEvent.KEYCODE_NUMPAD_MULTIPLY;
+            case "numpadsubtract": return KeyEvent.KEYCODE_NUMPAD_SUBTRACT;
+            case "numpadadd": return KeyEvent.KEYCODE_NUMPAD_ADD;
+            case "numpaddecimal": return KeyEvent.KEYCODE_NUMPAD_DOT;
             default: return KeyEvent.KEYCODE_UNKNOWN;
         }
     }
@@ -421,11 +549,61 @@ public class WebGamepadLayoutLoader {
         Game.instance.mouseButtonEvent(button, down);
     }
 
+    private static List<String> splitBindingValues(String value) {
+        List<String> values = new ArrayList<>();
+        if (value == null) {
+            return values;
+        }
+        String[] parts = value.split("[,+]");
+        for (String part : parts) {
+            String trimmed = part.trim();
+            if (!trimmed.isEmpty()) {
+                values.add(trimmed);
+            }
+        }
+        return values;
+    }
+
+    private static List<String> readBindingList(JSONObject binding, String arrayKey, String stringKey) {
+        List<String> values = new ArrayList<>();
+        if (binding == null) {
+            return values;
+        }
+
+        JSONArray array = binding.optJSONArray(arrayKey);
+        if (array != null) {
+            for (int i = 0; i < array.length(); i++) {
+                String value = array.optString(i, "");
+                if (!value.isEmpty()) {
+                    values.add(value);
+                }
+            }
+        }
+        if (values.isEmpty()) {
+            values.addAll(splitBindingValues(binding.optString(stringKey, "")));
+        }
+        return values;
+    }
+
+    private static boolean isRightTrigger(String value, String label) {
+        String target = normalize(value);
+        return target.contains("right") || target.equals("rt") || target.equals("r2") ||
+                normalize(label).equals("rt") || normalize(label).equals("r2");
+    }
+
+    private static boolean isTriggerBinding(String value) {
+        String target = normalize(value);
+        return target.equals("lt") || target.equals("l2") || target.equals("lefttrigger") ||
+                target.equals("rt") || target.equals("r2") || target.equals("righttrigger");
+    }
+
     private static abstract class WebElement extends VirtualControllerElement {
         protected final Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
         protected final RectF rect = new RectF();
         protected final String label;
         protected final String shape;
+        protected int fillColor = Color.TRANSPARENT;
+        private boolean forwardMousePosition;
 
         WebElement(VirtualController controller, Context context, int id, String label, String shape) {
             super(controller, context, id);
@@ -433,13 +611,40 @@ public class WebGamepadLayoutLoader {
             this.shape = shape == null ? "circle" : shape;
         }
 
+        void setWebStyle(int normalColor, int fillColor) {
+            this.normalColor = normalColor;
+            this.pressedColor = normalColor;
+            this.fillColor = fillColor;
+        }
+
+        void setForwardMousePosition(boolean forwardMousePosition) {
+            this.forwardMousePosition = forwardMousePosition;
+        }
+
+        protected void forwardMousePosition(MotionEvent event) {
+            if (forwardMousePosition && Game.instance != null && Game.instance.connected) {
+                Game.instance.updateMousePositionFromOverlay(this, event);
+            }
+        }
+
         protected void drawBody(Canvas canvas, boolean pressed) {
             canvas.drawColor(Color.TRANSPARENT);
             paint.setStrokeWidth(getDefaultStrokeWidth());
-            paint.setColor(pressed ? pressedColor : getDefaultColor());
-            paint.setStyle(Paint.Style.STROKE);
             rect.set(paint.getStrokeWidth(), paint.getStrokeWidth(),
                     getWidth() - paint.getStrokeWidth(), getHeight() - paint.getStrokeWidth());
+
+            if (fillColor != Color.TRANSPARENT) {
+                paint.setColor(fillColor);
+                paint.setStyle(Paint.Style.FILL);
+                if ("circle".equals(shape) || "pill".equals(shape)) {
+                    canvas.drawOval(rect, paint);
+                } else {
+                    canvas.drawRoundRect(rect, 10, 10, paint);
+                }
+            }
+
+            paint.setColor(pressed ? pressedColor : getDefaultColor());
+            paint.setStyle(Paint.Style.STROKE);
             if ("circle".equals(shape) || "pill".equals(shape)) {
                 canvas.drawOval(rect, paint);
             } else {
@@ -464,6 +669,8 @@ public class WebGamepadLayoutLoader {
         private final String inputType;
         private final JSONObject runtime;
         private final boolean trigger;
+        private boolean toggled;
+        private boolean active;
 
         WebButton(VirtualController controller, Context context, int elementId, String inputType,
                   JSONObject runtime, String label, String shape, boolean trigger) {
@@ -483,14 +690,17 @@ public class WebGamepadLayoutLoader {
         public boolean onElementTouchEvent(MotionEvent event) {
             switch (event.getActionMasked()) {
                 case MotionEvent.ACTION_DOWN:
-                    setPressed(true);
-                    apply(true);
+                    forwardMousePosition(event);
+                    handleDown();
                     invalidate();
+                    return true;
+                case MotionEvent.ACTION_MOVE:
+                    forwardMousePosition(event);
                     return true;
                 case MotionEvent.ACTION_CANCEL:
                 case MotionEvent.ACTION_UP:
-                    setPressed(false);
-                    apply(false);
+                    forwardMousePosition(event);
+                    handleUp();
                     invalidate();
                     return true;
                 default:
@@ -498,25 +708,78 @@ public class WebGamepadLayoutLoader {
             }
         }
 
+        private void handleDown() {
+            String behavior = runtime.optString("behavior", "hold");
+            if ("toggle".equals(behavior)) {
+                toggled = !toggled;
+                setPressed(toggled);
+                apply(toggled);
+            } else if ("tap".equals(behavior)) {
+                setPressed(true);
+                apply(true);
+                active = true;
+                virtualController.getHandler().postDelayed(() -> {
+                    if (active) {
+                        active = false;
+                        setPressed(false);
+                        apply(false);
+                        invalidate();
+                    }
+                }, 35);
+            } else {
+                active = true;
+                setPressed(true);
+                apply(true);
+            }
+        }
+
+        private void handleUp() {
+            String behavior = runtime.optString("behavior", "hold");
+            if ("toggle".equals(behavior)) {
+                return;
+            }
+            if (active) {
+                apply(false);
+            }
+            active = false;
+            setPressed(false);
+        }
+
         private void apply(boolean down) {
             JSONObject binding = runtime.optJSONObject("binding");
             if ("keyboard".equals(inputType)) {
-                sendKeyboard(parseAndroidKey(binding != null ? binding.optString("key") : runtime.optString("binding")), down);
+                List<String> keys = readBindingList(binding, "keys", "key");
+                if (keys.isEmpty()) {
+                    keys.add(runtime.optString("binding"));
+                }
+                sendKeys(keys, down);
             } else if ("mouse".equals(inputType)) {
-                sendMouseButton(parseMouseButton(binding != null ? binding.optString("button") : runtime.optString("binding")), down);
+                List<String> buttons = readBindingList(binding, "buttons", "button");
+                if (buttons.isEmpty()) {
+                    buttons.add(runtime.optString("binding"));
+                }
+                sendMouseButtons(buttons, down);
             } else {
                 VirtualController.ControllerInputContext inputContext = virtualController.getControllerInputContext();
-                if (trigger || "LeftTrigger".equals(runtime.optString("binding")) ||
-                        "RightTrigger".equals(runtime.optString("binding"))) {
-                    String target = binding != null ? binding.optString("trigger") : runtime.optString("binding");
-                    boolean right = normalize(target).contains("right") || normalize(label).equals("rt");
+                String target = binding != null ?
+                        binding.optString("axis", binding.optString("trigger", binding.optString("button"))) :
+                            runtime.optString("binding");
+                if (trigger || isTriggerBinding(target)) {
+                    boolean right = isRightTrigger(target, label);
                     if (right) {
                         inputContext.rightTrigger = (byte) (down ? 0xFF : 0x00);
                     } else {
                         inputContext.leftTrigger = (byte) (down ? 0xFF : 0x00);
                     }
                 } else {
-                    int flag = parseControllerFlag(binding != null ? binding.optString("button") : runtime.optString("binding"), label);
+                    int flag = 0;
+                    List<String> buttons = readBindingList(binding, "buttons", "button");
+                    if (buttons.isEmpty()) {
+                        buttons.add(runtime.optString("binding"));
+                    }
+                    for (String button : buttons) {
+                        flag |= parseControllerFlag(button, label);
+                    }
                     if (down) {
                         inputContext.inputMap |= flag;
                     } else {
@@ -525,6 +788,201 @@ public class WebGamepadLayoutLoader {
                 }
                 virtualController.sendControllerInputContext();
             }
+        }
+
+        private void sendKeys(List<String> keys, boolean down) {
+            if (down) {
+                for (String key : keys) {
+                    sendKeyboard(parseAndroidKey(key), true);
+                }
+            } else {
+                for (int i = keys.size() - 1; i >= 0; i--) {
+                    sendKeyboard(parseAndroidKey(keys.get(i)), false);
+                }
+            }
+        }
+
+        private void sendMouseButtons(List<String> buttons, boolean down) {
+            if (down) {
+                for (String button : buttons) {
+                    int parsed = parseMouseButton(button);
+                    if (parsed != 0) {
+                        sendMouseButton(parsed, true);
+                    }
+                }
+            } else {
+                for (int i = buttons.size() - 1; i >= 0; i--) {
+                    int parsed = parseMouseButton(buttons.get(i));
+                    if (parsed != 0) {
+                        sendMouseButton(parsed, false);
+                    }
+                }
+            }
+        }
+    }
+
+    private static class WebDpad extends WebElement {
+        private final String inputType;
+        private final JSONObject runtime;
+        private int direction;
+        private final List<Integer> activeKeys = new ArrayList<>();
+        private int activeControllerFlags;
+
+        WebDpad(VirtualController controller, Context context, int elementId, String inputType,
+                JSONObject runtime, String label, String shape) {
+            super(controller, context, elementId, label, shape);
+            this.inputType = inputType;
+            this.runtime = runtime;
+        }
+
+        @Override
+        protected void onElementDraw(Canvas canvas) {
+            drawBody(canvas, direction != 0);
+            paint.setStyle(Paint.Style.STROKE);
+            paint.setStrokeWidth(getDefaultStrokeWidth());
+            paint.setColor(getDefaultColor());
+            float left = getWidth() * 0.33f;
+            float right = getWidth() * 0.66f;
+            float top = getHeight() * 0.33f;
+            float bottom = getHeight() * 0.66f;
+            canvas.drawLine(left, 0, left, getHeight(), paint);
+            canvas.drawLine(right, 0, right, getHeight(), paint);
+            canvas.drawLine(0, top, getWidth(), top, paint);
+            canvas.drawLine(0, bottom, getWidth(), bottom, paint);
+            drawLabel(canvas);
+        }
+
+        @Override
+        public boolean onElementTouchEvent(MotionEvent event) {
+            switch (event.getActionMasked()) {
+                case MotionEvent.ACTION_DOWN:
+                case MotionEvent.ACTION_MOVE:
+                    forwardMousePosition(event);
+                    apply(directionFor(event.getX(), event.getY()));
+                    invalidate();
+                    return true;
+                case MotionEvent.ACTION_CANCEL:
+                case MotionEvent.ACTION_UP:
+                    forwardMousePosition(event);
+                    apply(0);
+                    invalidate();
+                    return true;
+                default:
+                    return true;
+            }
+        }
+
+        private int directionFor(float x, float y) {
+            int result = 0;
+            if (x < getWidth() * 0.33f) {
+                result |= DigitalPad.DIGITAL_PAD_DIRECTION_LEFT;
+            }
+            if (x > getWidth() * 0.66f) {
+                result |= DigitalPad.DIGITAL_PAD_DIRECTION_RIGHT;
+            }
+            if (y < getHeight() * 0.33f) {
+                result |= DigitalPad.DIGITAL_PAD_DIRECTION_UP;
+            }
+            if (y > getHeight() * 0.66f) {
+                result |= DigitalPad.DIGITAL_PAD_DIRECTION_DOWN;
+            }
+
+            if (!"8way".equals(runtime.optString("mode", "4way")) &&
+                    Integer.bitCount(result) > 1) {
+                float dx = x - getWidth() / 2f;
+                float dy = y - getHeight() / 2f;
+                if (Math.abs(dx) > Math.abs(dy)) {
+                    result &= dx < 0 ? DigitalPad.DIGITAL_PAD_DIRECTION_LEFT :
+                            DigitalPad.DIGITAL_PAD_DIRECTION_RIGHT;
+                } else {
+                    result &= dy < 0 ? DigitalPad.DIGITAL_PAD_DIRECTION_UP :
+                            DigitalPad.DIGITAL_PAD_DIRECTION_DOWN;
+                }
+            }
+            return result;
+        }
+
+        private void apply(int newDirection) {
+            if (newDirection == direction) {
+                return;
+            }
+
+            if ("keyboard".equals(inputType)) {
+                for (int key : activeKeys) {
+                    sendKeyboard(key, false);
+                }
+                activeKeys.clear();
+                for (String value : bindingsFor(newDirection)) {
+                    for (String key : splitBindingValues(value)) {
+                        int parsed = parseAndroidKey(key);
+                        if (parsed != KeyEvent.KEYCODE_UNKNOWN) {
+                            activeKeys.add(parsed);
+                            sendKeyboard(parsed, true);
+                        }
+                    }
+                }
+            } else {
+                VirtualController.ControllerInputContext inputContext = virtualController.getControllerInputContext();
+                inputContext.inputMap &= ~activeControllerFlags;
+                activeControllerFlags = 0;
+                for (String value : bindingsFor(newDirection)) {
+                    for (String button : splitBindingValues(value)) {
+                        activeControllerFlags |= parseControllerFlag(button, "");
+                    }
+                }
+                inputContext.inputMap |= activeControllerFlags;
+                virtualController.sendControllerInputContext(10, 0x22);
+            }
+
+            direction = newDirection;
+            setPressed(direction != 0);
+        }
+
+        private List<String> bindingsFor(int currentDirection) {
+            List<String> values = new ArrayList<>();
+            JSONObject bindings = runtime.optJSONObject("bindings");
+            if (bindings == null || currentDirection == 0) {
+                return values;
+            }
+
+            if ((currentDirection & DigitalPad.DIGITAL_PAD_DIRECTION_UP) != 0 &&
+                    (currentDirection & DigitalPad.DIGITAL_PAD_DIRECTION_LEFT) != 0 &&
+                    bindings.has("upLeft")) {
+                values.add(bindings.optString("upLeft"));
+                return values;
+            }
+            if ((currentDirection & DigitalPad.DIGITAL_PAD_DIRECTION_UP) != 0 &&
+                    (currentDirection & DigitalPad.DIGITAL_PAD_DIRECTION_RIGHT) != 0 &&
+                    bindings.has("upRight")) {
+                values.add(bindings.optString("upRight"));
+                return values;
+            }
+            if ((currentDirection & DigitalPad.DIGITAL_PAD_DIRECTION_DOWN) != 0 &&
+                    (currentDirection & DigitalPad.DIGITAL_PAD_DIRECTION_LEFT) != 0 &&
+                    bindings.has("downLeft")) {
+                values.add(bindings.optString("downLeft"));
+                return values;
+            }
+            if ((currentDirection & DigitalPad.DIGITAL_PAD_DIRECTION_DOWN) != 0 &&
+                    (currentDirection & DigitalPad.DIGITAL_PAD_DIRECTION_RIGHT) != 0 &&
+                    bindings.has("downRight")) {
+                values.add(bindings.optString("downRight"));
+                return values;
+            }
+
+            if ((currentDirection & DigitalPad.DIGITAL_PAD_DIRECTION_UP) != 0) {
+                values.add(bindings.optString("up"));
+            }
+            if ((currentDirection & DigitalPad.DIGITAL_PAD_DIRECTION_DOWN) != 0) {
+                values.add(bindings.optString("down"));
+            }
+            if ((currentDirection & DigitalPad.DIGITAL_PAD_DIRECTION_LEFT) != 0) {
+                values.add(bindings.optString("left"));
+            }
+            if ((currentDirection & DigitalPad.DIGITAL_PAD_DIRECTION_RIGHT) != 0) {
+                values.add(bindings.optString("right"));
+            }
+            return values;
         }
     }
 
@@ -561,12 +1019,14 @@ public class WebGamepadLayoutLoader {
             switch (event.getActionMasked()) {
                 case MotionEvent.ACTION_DOWN:
                 case MotionEvent.ACTION_MOVE:
+                    forwardMousePosition(event);
                     setPressed(true);
                     apply(x, y);
                     invalidate();
                     return true;
                 case MotionEvent.ACTION_CANCEL:
                 case MotionEvent.ACTION_UP:
+                    forwardMousePosition(event);
                     setPressed(false);
                     apply(0, 0);
                     invalidate();
