@@ -534,6 +534,10 @@
     <string name="summary_trackpad_sensitivity_x">X axis Sensitivity of the trackpad, negative to invert direction</string>
     <string name="title_trackpad_sensitivity_y">Trackpad Sensitivity Y</string>
     <string name="summary_trackpad_sensitivity_y">Y axis Sensitivity of the trackpad, negative to invert direction</string>
+    <string name="title_trackpad_acceleration">Enable trackpad acceleration</string>
+    <string name="summary_trackpad_acceleration">Adjusts cursor speed based on swipe distance in trackpad modes.</string>
+    <string name="title_trackpad_inertia">Enable trackpad inertia</string>
+    <string name="summary_trackpad_inertia">Keeps the cursor moving briefly after a quick swipe in trackpad modes.</string>
     <string name="title_trackpad_drag_drop_vibration">Enable Vibration for Drag-and-Drop on Trackpad</string>
     <string name="summary_trackpad_drag_drop_vibration">Enables vibration feedback for drag-and-drop actions on Samsung trackpad devices.</string>
     <string name="title_trackpad_drag_drop_threshold">Hold Duration for Drag-and-Drop Activation on Trackpad</string>
@@ -581,6 +585,7 @@
     <string name="mouse_mode_absolute_touch">Absolute touch</string>
     <string name="mouse_mode_track_pad_natural">Track pad(Natural/Double tap to drag)</string>
     <string name="mouse_mode_track_pad_gaming">Track pad(Gaming/Long press to drag)</string>
+    <string name="mouse_mode_track_pad_move_only">Track pad(Move only)</string>
     <string name="mouse_mode_disabled">Disabled</string>
     <string name="mouse_mode_absolute_touch_swapped">Absolute touch (left/right click swapped)</string>
     <string name="keyboard_layout_set_1">Profile 1</string>

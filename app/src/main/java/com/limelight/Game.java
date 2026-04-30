@@ -16,6 +16,7 @@ import com.limelight.binding.input.KeyboardTranslator;
 import com.limelight.binding.input.capture.InputCaptureManager;
 import com.limelight.binding.input.capture.InputCaptureProvider;
 import com.limelight.binding.input.touch.AbsoluteTouchContext;
+import com.limelight.binding.input.touch.MoveOnlyTrackpadContext;
 import com.limelight.binding.input.touch.RelativeTouchContext;
 import com.limelight.binding.input.driver.UsbDriverService;
 import com.limelight.binding.input.evdev.EvdevListener;
@@ -167,6 +168,12 @@ public class Game extends AppCompatActivity implements SurfaceHolder.Callback,
     private static final int FOUR_FINGER_TAP_THRESHOLD = 300;
     private static final int FIVE_FINGER_TAP_THRESHOLD = 300;
 
+    private static final double TRACKPAD_FLICK_FRICTION = 0.93;
+    private static final double TRACKPAD_FLICK_THRESHOLD = 0.8;
+    private static final double TRACKPAD_ACCELERATION_THRESHOLD = 8.0;
+    private static final int TRACKPAD_MOMENTUM_FRAME_INTERVAL_MS = 10;
+    private static final int TRACKPAD_FLICK_VELOCITY_DECAY_TIMEOUT_MS = 50;
+
     private Handler timerHandler;
 
     private ControllerHandler controllerHandler;
@@ -217,6 +224,44 @@ public class Game extends AppCompatActivity implements SurfaceHolder.Callback,
     private boolean overlayPointerActive = false;
     private float overlayLastX = 0;
     private float overlayLastY = 0;
+    private double overlayPendingDeltaX = 0;
+    private double overlayPendingDeltaY = 0;
+    private double overlayVelocityX = 0;
+    private double overlayVelocityY = 0;
+    private long overlayLastMoveTime = 0;
+    private boolean overlayFlicking = false;
+    private final Runnable overlayMomentumRunnable = new Runnable() {
+        @Override
+        public void run() {
+            if (!overlayFlicking || conn == null) {
+                return;
+            }
+
+            overlayPendingDeltaX += overlayVelocityX * TRACKPAD_MOMENTUM_FRAME_INTERVAL_MS;
+            overlayPendingDeltaY += overlayVelocityY * TRACKPAD_MOMENTUM_FRAME_INTERVAL_MS;
+
+            short sendDeltaX = (short) overlayPendingDeltaX;
+            short sendDeltaY = (short) overlayPendingDeltaY;
+
+            if (sendDeltaX != 0 || sendDeltaY != 0) {
+                conn.sendMouseMove(sendDeltaX, sendDeltaY);
+                overlayPendingDeltaX -= sendDeltaX;
+                overlayPendingDeltaY -= sendDeltaY;
+            }
+
+            overlayVelocityX *= TRACKPAD_FLICK_FRICTION;
+            overlayVelocityY *= TRACKPAD_FLICK_FRICTION;
+
+            if (Math.sqrt(overlayVelocityX * overlayVelocityX + overlayVelocityY * overlayVelocityY) *
+                    TRACKPAD_MOMENTUM_FRAME_INTERVAL_MS < 0.5) {
+                overlayFlicking = false;
+            }
+
+            if (overlayFlicking) {
+                timerHandler.postDelayed(this, TRACKPAD_MOMENTUM_FRAME_INTERVAL_MS);
+            }
+        }
+    };
 
     private long lastAbsTouchUpTime = 0;
     private long lastAbsTouchDownTime = 0;
@@ -819,7 +864,9 @@ public class Game extends AppCompatActivity implements SurfaceHolder.Callback,
 
         // Initialize trackpad contexts
         for (int i = 0; i < trackpadContextMap.length; i++) {
-            trackpadContextMap[i] = new TrackpadContext(conn, i, prefConfig.trackpadSwapAxis, prefConfig.trackpadSensitivityX, prefConfig.trackpadSensitivityY);
+            trackpadContextMap[i] = new TrackpadContext(conn, i, prefConfig.trackpadSwapAxis,
+                    prefConfig.trackpadSensitivityX, prefConfig.trackpadSensitivityY,
+                    prefConfig.trackpadInertia, prefConfig.trackpadAcceleration);
         }
 
         if (Objects.equals(appUUID, NvApp.REMOTE_INPUT_UUID)) {
@@ -3463,6 +3510,7 @@ public class Game extends AppCompatActivity implements SurfaceHolder.Callback,
                 break;
             case 2:
             case 3:
+            case 6:
                 sendOverlayTrackpadEvent(event, eventX, eventY);
                 break;
             default:
@@ -3502,22 +3550,70 @@ public class Game extends AppCompatActivity implements SurfaceHolder.Callback,
         switch (event.getActionMasked()) {
             case MotionEvent.ACTION_DOWN:
             case MotionEvent.ACTION_POINTER_DOWN:
+                if (overlayFlicking) {
+                    overlayFlicking = false;
+                    timerHandler.removeCallbacks(overlayMomentumRunnable);
+                }
                 overlayPointerActive = true;
                 overlayLastX = eventX;
                 overlayLastY = eventY;
+                overlayPendingDeltaX = overlayPendingDeltaY = 0;
+                overlayVelocityX = overlayVelocityY = 0;
+                overlayLastMoveTime = event.getEventTime();
                 break;
             case MotionEvent.ACTION_MOVE:
                 if (!overlayPointerActive) {
                     overlayPointerActive = true;
                     overlayLastX = eventX;
                     overlayLastY = eventY;
+                    overlayLastMoveTime = event.getEventTime();
                     return;
                 }
 
-                float deltaX = (eventX - overlayLastX) * prefConfig.touchPadSensitivity * 0.01f;
-                float deltaY = (eventY - overlayLastY) * prefConfig.touchPadYSensitity * 0.01f;
-                if (deltaX != 0 || deltaY != 0) {
-                    conn.sendMouseMove((short) deltaX, (short) deltaY);
+                long deltaTime = event.getEventTime() - overlayLastMoveTime;
+                float rawDeltaX = eventX - overlayLastX;
+                float rawDeltaY = eventY - overlayLastY;
+                double deltaX;
+                double deltaY;
+                double magnitude = Math.sqrt(rawDeltaX * rawDeltaX + rawDeltaY * rawDeltaY);
+                double precisionMultiplier = prefConfig.trackpadAcceleration ?
+                        Math.cbrt(magnitude / TRACKPAD_ACCELERATION_THRESHOLD) : 1.0;
+
+                if (prefConfig.trackpadSwapAxis) {
+                    deltaX = rawDeltaY;
+                    deltaY = rawDeltaX;
+                } else {
+                    deltaX = rawDeltaX;
+                    deltaY = rawDeltaY;
+                }
+
+                deltaX *= precisionMultiplier;
+                deltaY *= precisionMultiplier;
+                deltaX *= prefConfig.trackpadSensitivityX * 0.01f;
+                deltaY *= prefConfig.trackpadSensitivityY * 0.01f;
+
+                if (prefConfig.trackpadInertia && deltaTime > 0) {
+                    double currentVelocityX = deltaX / deltaTime;
+                    double currentVelocityY = deltaY / deltaTime;
+                    if (overlayVelocityX == 0 && overlayVelocityY == 0) {
+                        overlayVelocityX = currentVelocityX;
+                        overlayVelocityY = currentVelocityY;
+                    } else {
+                        overlayVelocityX = overlayVelocityX * 0.8 + currentVelocityX * 0.2;
+                        overlayVelocityY = overlayVelocityY * 0.8 + currentVelocityY * 0.2;
+                    }
+                }
+
+                overlayLastMoveTime = event.getEventTime();
+                overlayPendingDeltaX += deltaX;
+                overlayPendingDeltaY += deltaY;
+
+                short sendDeltaX = (short) overlayPendingDeltaX;
+                short sendDeltaY = (short) overlayPendingDeltaY;
+                if (sendDeltaX != 0 || sendDeltaY != 0) {
+                    conn.sendMouseMove(sendDeltaX, sendDeltaY);
+                    overlayPendingDeltaX -= sendDeltaX;
+                    overlayPendingDeltaY -= sendDeltaY;
                 }
                 overlayLastX = eventX;
                 overlayLastY = eventY;
@@ -3526,6 +3622,21 @@ public class Game extends AppCompatActivity implements SurfaceHolder.Callback,
             case MotionEvent.ACTION_POINTER_UP:
             case MotionEvent.ACTION_CANCEL:
                 overlayPointerActive = false;
+                if (event.getActionMasked() == MotionEvent.ACTION_UP && prefConfig.trackpadInertia) {
+                    long timeSinceLastMove = event.getEventTime() - overlayLastMoveTime;
+                    if (timeSinceLastMove > 0) {
+                        double decay = Math.max(0.0, 1.0 - (double) timeSinceLastMove /
+                                TRACKPAD_FLICK_VELOCITY_DECAY_TIMEOUT_MS);
+                        overlayVelocityX *= decay;
+                        overlayVelocityY *= decay;
+                    }
+
+                    double speed = Math.sqrt(overlayVelocityX * overlayVelocityX + overlayVelocityY * overlayVelocityY);
+                    if (speed > TRACKPAD_FLICK_THRESHOLD) {
+                        overlayFlicking = true;
+                        timerHandler.post(overlayMomentumRunnable);
+                    }
+                }
                 break;
             default:
                 break;
@@ -4183,6 +4294,7 @@ public class Game extends AppCompatActivity implements SurfaceHolder.Callback,
 
         String natural = getString(R.string.mouse_mode_track_pad_natural);
         String gaming = getString(R.string.mouse_mode_track_pad_gaming);
+        String moveOnly = getString(R.string.mouse_mode_track_pad_move_only);
         String disabled = getString(R.string.mouse_mode_disabled);
 
         int naturalIndex = 2; //fallback natural mode for secondary screen
@@ -4197,6 +4309,7 @@ public class Game extends AppCompatActivity implements SurfaceHolder.Callback,
             if (savedMouseModeString != null &&
                     (savedMouseModeString.equals(natural) ||
                             savedMouseModeString.equals(gaming) ||
+                            savedMouseModeString.equals(moveOnly) ||
                             savedMouseModeString.equals(disabled))) {
                 applyMouseMode(savedMouseModeIndex);
             } else {
@@ -4228,6 +4341,7 @@ public class Game extends AppCompatActivity implements SurfaceHolder.Callback,
         Set<String> allowedLabels = new HashSet<>(Arrays.asList(
                 getString(R.string.mouse_mode_track_pad_natural),
                 getString(R.string.mouse_mode_track_pad_gaming),
+                getString(R.string.mouse_mode_track_pad_move_only),
                 getString(R.string.mouse_mode_disabled)
         ));
 
@@ -4287,6 +4401,8 @@ public class Game extends AppCompatActivity implements SurfaceHolder.Callback,
     private void applyMouseMode(int mode) {
         currentMouseMode = mode;
         overlayPointerActive = false;
+        overlayFlicking = false;
+        timerHandler.removeCallbacks(overlayMomentumRunnable);
 
         switch (mode) {
             case 0: // Multi-touch
@@ -4300,6 +4416,7 @@ public class Game extends AppCompatActivity implements SurfaceHolder.Callback,
                 break;
             case 2: // Trackpad (natural)
             case 3: // Trackpad (gaming)
+            case 6: // Trackpad (move only)
                 prefConfig.enableMultiTouchScreen = false;
                 prefConfig.touchscreenTrackpad = true;
                 break;
@@ -4317,10 +4434,14 @@ public class Game extends AppCompatActivity implements SurfaceHolder.Callback,
                 touchContextMap[i] = null;
             } else if (!prefConfig.touchscreenTrackpad) {
                 touchContextMap[i] = new AbsoluteTouchContext(conn, i, streamContainer, mode == 5);
+            } else if (mode == 6) {
+                touchContextMap[i] = new MoveOnlyTrackpadContext(conn, i, streamContainer, prefConfig);
             } else if (mode == 3) {
                 touchContextMap[i] = new RelativeTouchContext(conn, i, REFERENCE_HORIZ_RES, REFERENCE_VERT_RES, streamContainer, prefConfig);
             } else {
-                touchContextMap[i] = new TrackpadContext(conn, i);
+                touchContextMap[i] = new TrackpadContext(conn, i, prefConfig.trackpadSwapAxis,
+                        prefConfig.trackpadSensitivityX, prefConfig.trackpadSensitivityY,
+                        prefConfig.trackpadInertia, prefConfig.trackpadAcceleration);
             }
         }
 

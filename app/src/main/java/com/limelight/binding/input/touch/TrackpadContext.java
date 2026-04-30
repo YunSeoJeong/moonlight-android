@@ -38,6 +38,8 @@ public class TrackpadContext implements TouchContext {
     private boolean swapAxis = false;
     private float sensitivityX = 1;
     private float sensitivityY = 1;
+    private boolean enableInertia = true;
+    private boolean enableAcceleration = true;
 
     private static final int TAP_MOVEMENT_THRESHOLD = 30;
     private static final int TAP_TIME_THRESHOLD = 230;
@@ -63,6 +65,17 @@ public class TrackpadContext implements TouchContext {
         this.swapAxis = swapAxis;
         this.sensitivityX = (float) sensitivityX / 100;
         this.sensitivityY = (float) sensitivityY / 100;
+    }
+
+    public TrackpadContext(NvConnection conn, int actionIndex, boolean swapAxis, int sensitivityX, int sensitivityY, boolean enableInertia) {
+        this(conn, actionIndex, swapAxis, sensitivityX, sensitivityY);
+        this.enableInertia = enableInertia;
+    }
+
+    public TrackpadContext(NvConnection conn, int actionIndex, boolean swapAxis, int sensitivityX, int sensitivityY,
+                           boolean enableInertia, boolean enableAcceleration) {
+        this(conn, actionIndex, swapAxis, sensitivityX, sensitivityY, enableInertia);
+        this.enableAcceleration = enableAcceleration;
     }
 
     private final Runnable scrollTransitionRunnable = new Runnable() {
@@ -263,7 +276,7 @@ public class TrackpadContext implements TouchContext {
             handler.removeCallbacksAndMessages(null);
 
             double speed = Math.sqrt(velocityX * velocityX + velocityY * velocityY);
-            if (speed > FLICK_THRESHOLD) {
+            if (enableInertia && speed > FLICK_THRESHOLD) {
                 isFlicking = true;
                 handler.post(momentumRunnable);
             } else {
@@ -287,7 +300,7 @@ public class TrackpadContext implements TouchContext {
         else if (confirmedMove) {
             // This was a move/scroll that wasn't a drag or tap. Let's see if we should flick.
             double speed = Math.sqrt(velocityX * velocityX + velocityY * velocityY);
-            if (speed > FLICK_THRESHOLD) {
+            if (enableInertia && speed > FLICK_THRESHOLD) {
                 isFlicking = true;
                 if (confirmedScroll) {
                     handler.post(scrollMomentumRunnable);
@@ -322,7 +335,7 @@ public class TrackpadContext implements TouchContext {
             int absDeltaX, absDeltaY;
 
             double magnitude = Math.sqrt(rawDeltaX * rawDeltaX + rawDeltaY * rawDeltaY);
-            double precisionMultiplier = Math.cbrt(magnitude / ACCELERATION_THRESHOLD);
+            double precisionMultiplier = enableAcceleration ? Math.cbrt(magnitude / ACCELERATION_THRESHOLD) : 1.0;
 
             float deltaX, deltaY;
             if (swapAxis) {
@@ -346,7 +359,7 @@ public class TrackpadContext implements TouchContext {
             deltaY *= sensitivityY;
 
             // Update velocity for flicking
-            if (deltaTime > 0 && (confirmedMove || confirmedDrag)) {
+            if (enableInertia && deltaTime > 0 && (confirmedMove || confirmedDrag)) {
                 double currentVelocityX = deltaX / deltaTime;
                 double currentVelocityY = deltaY / deltaTime;
 

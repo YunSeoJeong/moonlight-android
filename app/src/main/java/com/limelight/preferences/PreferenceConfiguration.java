@@ -141,6 +141,8 @@ public class PreferenceConfiguration {
     private static final String CHECKBOX_TRACKPAD_DRAG_DROP_VIBRATION = "checkbox_trackpad_drag_drop_vibration";
     private static final String SEEKBAR_TRACKPAD_DRAG_DROP_THRESHOLD = "seekbar_trackpad_drag_drop_threshold";
     private static final String CHECKBOX_TRACKPAD_SWAP_AXIS = "checkbox_trackpad_swap_axis";
+    private static final String CHECKBOX_TRACKPAD_INERTIA = "checkbox_trackpad_inertia";
+    private static final String CHECKBOX_TRACKPAD_ACCELERATION = "checkbox_trackpad_acceleration";
 
     private static final String CHECKBOX_ENABLE_COMMIT_TEXT = "checkbox_enable_commit_text";
 
@@ -211,6 +213,8 @@ public class PreferenceConfiguration {
     private static final boolean DEFAULT_TRACKPAD_DRAG_DROP_VIBRATION = false;
     private static final int DEFAULT_TRACKPAD_DRAG_DROP_THRESHOLD = 250;
     private static final boolean DEFAULT_TRACKPAD_SWAP_AXIS = false;
+    private static final boolean DEFAULT_TRACKPAD_INERTIA = true;
+    private static final boolean DEFAULT_TRACKPAD_ACCELERATION = true;
     private static final boolean DEFAULT_ENABLE_COMMIT_TEXT = false;
     private static final String DEFAULT_ONSCREEN_KEYBOARD_ALIGN_MODE = "center";
     private static final boolean DEFAULT_SHOW_OVERLAY_TOGGLE_BUTTON = false;
@@ -357,6 +361,8 @@ public class PreferenceConfiguration {
     public boolean trackpadDragDropVibration;
     public int trackpadDragDropThreshold;
     public boolean trackpadSwapAxis;
+    public boolean trackpadInertia;
+    public boolean trackpadAcceleration;
 
     public boolean bindAllUsb;
     public boolean mouseEmulation;
@@ -933,6 +939,7 @@ private static int getFramePacingValue(Context context) {
                 break;
             case 2: // Trackpad (natural)
             case 3: // Trackpad (gaming)
+            case 6: // Trackpad (move only)
                 config.enableMultiTouchScreen = false;
                 config.touchscreenTrackpad = true;
                 break;
@@ -1028,6 +1035,8 @@ private static int getFramePacingValue(Context context) {
         config.trackpadDragDropVibration = prefs.getBoolean(CHECKBOX_TRACKPAD_DRAG_DROP_VIBRATION, DEFAULT_TRACKPAD_DRAG_DROP_VIBRATION);
         config.trackpadDragDropThreshold = prefs.getInt(SEEKBAR_TRACKPAD_DRAG_DROP_THRESHOLD, DEFAULT_TRACKPAD_DRAG_DROP_THRESHOLD);
         config.trackpadSwapAxis = prefs.getBoolean(CHECKBOX_TRACKPAD_SWAP_AXIS, DEFAULT_TRACKPAD_SWAP_AXIS);
+        config.trackpadInertia = prefs.getBoolean(CHECKBOX_TRACKPAD_INERTIA, DEFAULT_TRACKPAD_INERTIA);
+        config.trackpadAcceleration = prefs.getBoolean(CHECKBOX_TRACKPAD_ACCELERATION, DEFAULT_TRACKPAD_ACCELERATION);
 
         config.absoluteMouseMode = prefs.getBoolean(ABSOLUTE_MOUSE_MODE_PREF_STRING, DEFAULT_ABSOLUTE_MOUSE_MODE);
         config.enableBatteryReport = prefs.getBoolean(CHECKBOX_ENABLE_BATTERY_REPORT, DEFAULT_GAMEPAD_ENABLE_BATTERY_REPORT);

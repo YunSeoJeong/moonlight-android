@@ -90,6 +90,7 @@ public class RelativeTouchContext implements TouchContext {
     private static final int DRAG_TIME_THRESHOLD = 650;
 
     private static final int SCROLL_SPEED_FACTOR = 5;
+    private static final double ACCELERATION_THRESHOLD = 8.0;
 
     public RelativeTouchContext(NvConnection conn, int actionIndex,
                                 int referenceWidth, int referenceHeight,
@@ -279,7 +280,12 @@ public class RelativeTouchContext implements TouchContext {
                                 (short) targetView.getHeight());
                     }
                     else {
-                        conn.sendMouseMove((short) (deltaX*prefConfig.touchPadSensitivity*0.01f), (short) (deltaY*prefConfig.touchPadYSensitity*0.01f));
+                        double magnitude = Math.sqrt(deltaX * deltaX + deltaY * deltaY);
+                        double precisionMultiplier = prefConfig.trackpadAcceleration ?
+                                Math.cbrt(magnitude / ACCELERATION_THRESHOLD) : 1.0;
+                        conn.sendMouseMove(
+                                (short) (deltaX * precisionMultiplier * prefConfig.touchPadSensitivity * 0.01f),
+                                (short) (deltaY * precisionMultiplier * prefConfig.touchPadYSensitity * 0.01f));
                     }
                 }
 
