@@ -1035,11 +1035,15 @@ public class WebGamepadLayoutLoader {
     }
 
     private static class WebStick extends WebElement {
+        private static final float DIAGONAL_THRESHOLD = 0.41421356f; // tan(22.5 degrees)
+
         private final String inputType;
         private final JSONObject runtime;
         private final float deadzone;
         private int lastHorizontalKey = KeyEvent.KEYCODE_UNKNOWN;
         private int lastVerticalKey = KeyEvent.KEYCODE_UNKNOWN;
+        private float normalizedStickX;
+        private float normalizedStickY;
 
         WebStick(VirtualController controller, Context context, int elementId, String inputType,
                  JSONObject runtime, String label, String shape) {
@@ -1061,15 +1065,16 @@ public class WebGamepadLayoutLoader {
 
         @Override
         public boolean onElementTouchEvent(MotionEvent event) {
-            float x = clamp((event.getX() - getWidth() / 2f) / (getWidth() / 2f));
-            float y = clamp((event.getY() - getHeight() / 2f) / (getHeight() / 2f));
+            normalizeStickPosition(
+                    (event.getX() - getWidth() / 2f) / (getWidth() / 2f),
+                    (event.getY() - getHeight() / 2f) / (getHeight() / 2f));
 
             switch (event.getActionMasked()) {
                 case MotionEvent.ACTION_DOWN:
                 case MotionEvent.ACTION_MOVE:
                     forwardMousePosition(event);
                     setPressed(true);
-                    apply(x, y);
+                    apply(normalizedStickX, normalizedStickY);
                     invalidate();
                     return true;
                 case MotionEvent.ACTION_CANCEL:
@@ -1085,10 +1090,9 @@ public class WebGamepadLayoutLoader {
         }
 
         private void apply(float x, float y) {
-            if (Math.abs(x) < deadzone) {
+            float magnitude = magnitude(x, y);
+            if (magnitude < deadzone) {
                 x = 0;
-            }
-            if (Math.abs(y) < deadzone) {
                 y = 0;
             }
 
@@ -1117,10 +1121,25 @@ public class WebGamepadLayoutLoader {
                 return;
             }
 
-            int horizontal = x < 0 ? parseAndroidKey(bindings.optString("left")) :
-                    x > 0 ? parseAndroidKey(bindings.optString("right")) : KeyEvent.KEYCODE_UNKNOWN;
-            int vertical = y < 0 ? parseAndroidKey(bindings.optString("up")) :
-                    y > 0 ? parseAndroidKey(bindings.optString("down")) : KeyEvent.KEYCODE_UNKNOWN;
+            int horizontal = KeyEvent.KEYCODE_UNKNOWN;
+            int vertical = KeyEvent.KEYCODE_UNKNOWN;
+            float absX = Math.abs(x);
+            float absY = Math.abs(y);
+
+            if (absX > 0 || absY > 0) {
+                boolean eightWay = !"4way".equals(runtime.optString("mode", "8way"));
+                boolean horizontalDominant = absX > absY;
+                boolean diagonal = eightWay && Math.min(absX, absY) >= Math.max(absX, absY) * DIAGONAL_THRESHOLD;
+
+                if (diagonal || horizontalDominant) {
+                    horizontal = x < 0 ? parseAndroidKey(bindings.optString("left")) :
+                            parseAndroidKey(bindings.optString("right"));
+                }
+                if (diagonal || !horizontalDominant) {
+                    vertical = y < 0 ? parseAndroidKey(bindings.optString("up")) :
+                            parseAndroidKey(bindings.optString("down"));
+                }
+            }
 
             if (horizontal != lastHorizontalKey) {
                 sendKeyboard(lastHorizontalKey, false);
@@ -1132,6 +1151,24 @@ public class WebGamepadLayoutLoader {
                 sendKeyboard(vertical, true);
                 lastVerticalKey = vertical;
             }
+        }
+
+        private void normalizeStickPosition(float x, float y) {
+            x = clamp(x);
+            y = clamp(y);
+
+            float magnitude = magnitude(x, y);
+            if (magnitude > 1f) {
+                x /= magnitude;
+                y /= magnitude;
+            }
+
+            normalizedStickX = x;
+            normalizedStickY = y;
+        }
+
+        private float magnitude(float x, float y) {
+            return (float) Math.sqrt(x * x + y * y);
         }
 
         private float clamp(float value) {
