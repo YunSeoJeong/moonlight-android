@@ -67,6 +67,7 @@ public class VirtualController {
 
     private List<VirtualControllerElement> elements = new ArrayList<>();
     private boolean refreshPending;
+    private boolean controlsEnabled = true;
 
     private Vibrator vibrator;
 
@@ -98,32 +99,12 @@ public class VirtualController {
         buttonConfigure.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
-                String message;
-
-                if (currentMode == ControllerMode.Active) {
-                    currentMode = ControllerMode.DisableEnableButtons;
-                    showElements();
-                    message = context.getString(R.string.configuration_mode_disable_enable_buttons);
-                } else if (currentMode == ControllerMode.DisableEnableButtons){
-                    currentMode = ControllerMode.MoveButtons;
-                    showEnabledElements();
-                    message = context.getString(R.string.configuration_mode_move_buttons);
-                } else if (currentMode == ControllerMode.MoveButtons) {
-                    currentMode = ControllerMode.ResizeButtons;
-                    message = context.getString(R.string.configuration_mode_resize_buttons);
-                } else {
-                    currentMode = ControllerMode.Active;
-                    VirtualControllerConfigurationLoader.saveProfile(VirtualController.this, context);
-                    message = context.getString(R.string.configuration_mode_exiting);
-                }
-
-                Toast.makeText(context, message, Toast.LENGTH_SHORT).show();
-
-                buttonConfigure.invalidate();
-
-                for (VirtualControllerElement element : elements) {
-                    element.invalidate();
-                }
+                setControlsEnabled(!controlsEnabled);
+                Toast.makeText(context,
+                        context.getString(controlsEnabled ?
+                                R.string.virtual_gamepad_controls_enabled :
+                                R.string.virtual_gamepad_controls_disabled),
+                        Toast.LENGTH_SHORT).show();
             }
         });
 
@@ -142,7 +123,11 @@ public class VirtualController {
     }
 
     public void show() {
-        showEnabledElements();
+        if (controlsEnabled) {
+            showEnabledElements();
+        } else {
+            hideControlElements();
+        }
 
         buttonConfigure.setVisibility(View.VISIBLE);
     }
@@ -167,6 +152,38 @@ public class VirtualController {
         for(VirtualControllerElement element: elements){
             element.setVisibility( element.enabled ? View.VISIBLE : View.GONE );
         }
+    }
+
+    private void hideControlElements() {
+        for (VirtualControllerElement element : elements) {
+            element.setVisibility(View.GONE);
+        }
+    }
+
+    private void setControlsEnabled(boolean enabled) {
+        controlsEnabled = enabled;
+        currentMode = ControllerMode.Active;
+
+        if (controlsEnabled) {
+            showEnabledElements();
+        } else {
+            hideControlElements();
+            resetInputContext();
+        }
+
+        buttonConfigure.setVisibility(View.VISIBLE);
+        buttonConfigure.invalidate();
+    }
+
+    private void resetInputContext() {
+        inputContext.inputMap = 0;
+        inputContext.leftTrigger = 0;
+        inputContext.rightTrigger = 0;
+        inputContext.leftStickX = 0;
+        inputContext.leftStickY = 0;
+        inputContext.rightStickX = 0;
+        inputContext.rightStickY = 0;
+        sendControllerInputContextInternal();
     }
 
     public void removeElements() {
@@ -266,6 +283,10 @@ public class VirtualController {
 
             // Apply user preferences onto the default layout
             VirtualControllerConfigurationLoader.loadFromPreferences(this, context);
+        }
+
+        if (!controlsEnabled) {
+            hideControlElements();
         }
     }
 

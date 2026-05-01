@@ -867,17 +867,20 @@ public class WebGamepadLayoutLoader {
             if (fillColor != Color.TRANSPARENT) {
                 paint.setColor(fillColor);
                 paint.setStyle(Paint.Style.FILL);
-                if ("circle".equals(shape) || "pill".equals(shape)) {
-                    canvas.drawOval(rect, paint);
-                } else {
-                    canvas.drawRoundRect(rect, 10, 10, paint);
-                }
+                drawShape(canvas);
             }
 
             paint.setColor(pressed ? pressedColor : getDefaultColor());
             paint.setStyle(Paint.Style.STROKE);
-            if ("circle".equals(shape) || "pill".equals(shape)) {
+            drawShape(canvas);
+        }
+
+        private void drawShape(Canvas canvas) {
+            if ("circle".equals(shape)) {
                 canvas.drawOval(rect, paint);
+            } else if ("pill".equals(shape)) {
+                float radius = Math.min(rect.width(), rect.height()) / 2f;
+                canvas.drawRoundRect(rect, radius, radius, paint);
             } else {
                 canvas.drawRoundRect(rect, 10, 10, paint);
             }

@@ -13,6 +13,8 @@
     <string name="configuration_mode_resize_buttons">Resize buttons mode</string>
     <string name="configuration_mode_disable_enable_buttons">Enable/Disable buttons mode</string>
     <string name="configuration_mode_exiting">Exiting configuration mode</string>
+    <string name="virtual_gamepad_controls_enabled">Virtual gamepad enabled</string>
+    <string name="virtual_gamepad_controls_disabled">Virtual gamepad disabled</string>
     <string name="help_loading_title">Help Viewer</string>
     <string name="help_loading_msg">Loading help page…</string>
 
@@ -257,6 +259,8 @@
     <string name="summary_checkbox_absolute_mouse_mode">This can make mouse acceleration behave more naturally for remote desktop usage, but it is incompatible with many games.</string>
     <string name="title_checkbox_mouse_nav_buttons">Enable forward/back mouse buttons</string>
     <string name="summary_checkbox_mouse_nav_buttons">Enabling this option may break right clicking on some buggy devices</string>
+    <string name="title_mouse_scroll_sensitivity">Mouse wheel scroll sensitivity</string>
+    <string name="summary_mouse_scroll_sensitivity">Adjusts vertical and horizontal physical mouse wheel scroll speed.</string>
 
     <string name="category_on_screen_controls_settings">On-screen Controls Settings</string>
     <string name="title_checkbox_show_onscreen_controls">Show on-screen controls</string>

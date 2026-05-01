@@ -3051,9 +3051,8 @@ public class Game extends AppCompatActivity implements SurfaceHolder.Callback,
                 }
 
                 if (event.getActionMasked() == MotionEvent.ACTION_SCROLL) {
-                    // Send the vertical scroll packet
-                    conn.sendMouseHighResScroll((short)(event.getAxisValue(MotionEvent.AXIS_VSCROLL) * 120));
-                    conn.sendMouseHighResHScroll((short)(event.getAxisValue(MotionEvent.AXIS_HSCROLL) * 120));
+                    mouseHighResScrollEvent((short)(event.getAxisValue(MotionEvent.AXIS_VSCROLL) * 120),
+                            (short)(event.getAxisValue(MotionEvent.AXIS_HSCROLL) * 120));
                 }
 
                 if ((changedButtons & MotionEvent.BUTTON_PRIMARY) != 0) {
@@ -4137,6 +4136,8 @@ public class Game extends AppCompatActivity implements SurfaceHolder.Callback,
         if (conn == null) {
             return;
         }
+        verticalAmount = scaleMouseHighResScroll(verticalAmount);
+        horizontalAmount = scaleMouseHighResScroll(horizontalAmount);
         if (verticalAmount != 0) {
             conn.sendMouseHighResScroll(verticalAmount);
         }
@@ -4147,12 +4148,31 @@ public class Game extends AppCompatActivity implements SurfaceHolder.Callback,
 
     @Override
     public void mouseVScroll(byte amount) {
-        conn.sendMouseScroll(amount);
+        short scaledAmount = scaleMouseHighResScroll((short)(amount * 120));
+        if (scaledAmount != 0) {
+            conn.sendMouseHighResScroll(scaledAmount);
+        }
     }
 
     @Override
     public void mouseHScroll(byte amount) {
-        conn.sendMouseHScroll(amount);
+        short scaledAmount = scaleMouseHighResScroll((short)(amount * 120));
+        if (scaledAmount != 0) {
+            conn.sendMouseHighResHScroll(scaledAmount);
+        }
+    }
+
+    private short scaleMouseHighResScroll(short amount) {
+        int scaledAmount = Math.round(amount * prefConfig.mouseScrollSensitivity / 100f);
+        if (scaledAmount > Short.MAX_VALUE) {
+            return Short.MAX_VALUE;
+        }
+        else if (scaledAmount < Short.MIN_VALUE) {
+            return Short.MIN_VALUE;
+        }
+        else {
+            return (short)scaledAmount;
+        }
     }
 
     @Override
