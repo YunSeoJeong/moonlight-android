@@ -99,11 +99,13 @@
             android:title="@string/title_checkbox_auto_invert_video_resolution"
             app:iconSpaceReserved="false" />
 
-        <CheckBoxPreference
-            android:defaultValue="false"
-            android:key="checkbox_enable_view_top_center"
-            android:summary="@string/summary_top_center_display"
-            android:title="@string/title_top_center_display"
+        <ListPreference
+            android:defaultValue="center"
+            android:entries="@array/display_alignment_names"
+            android:entryValues="@array/display_alignment_values"
+            android:key="list_display_alignment"
+            android:summary="@string/summary_display_alignment"
+            android:title="@string/title_display_alignment"
             app:iconSpaceReserved="false" />
 
         <com.limelight.preferences.SeekBarPreference

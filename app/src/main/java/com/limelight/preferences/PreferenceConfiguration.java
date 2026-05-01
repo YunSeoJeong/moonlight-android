@@ -122,6 +122,8 @@ public class PreferenceConfiguration {
     private static final String CHECKBOX_ENABLE_FLOATING_BUTTON = "checkbox_enable_floating_button";
 
     private static final String CHECKBOX_SHOW_OVERLAY_ZOOM_TOGGLE_BUTTON = "checkbox_show_overlay_zoom_toggle_button";
+    private static final String DISPLAY_ALIGNMENT_PREF_STRING = "list_display_alignment";
+    private static final String LEGACY_TOP_CENTER_DISPLAY_PREF_STRING = "checkbox_enable_view_top_center";
 
     //竖屏模式
     private static final String CHECKBOX_AUTO_ORIENTATION = "checkbox_auto_orientation";
@@ -218,6 +220,10 @@ public class PreferenceConfiguration {
     private static final boolean DEFAULT_ENABLE_COMMIT_TEXT = false;
     private static final String DEFAULT_ONSCREEN_KEYBOARD_ALIGN_MODE = "center";
     private static final boolean DEFAULT_SHOW_OVERLAY_TOGGLE_BUTTON = false;
+    public static final String DISPLAY_ALIGNMENT_CENTER = "center";
+    public static final String DISPLAY_ALIGNMENT_TOP = "top";
+    public static final String DISPLAY_ALIGNMENT_BOTTOM = "bottom";
+    private static final String DEFAULT_DISPLAY_ALIGNMENT = DISPLAY_ALIGNMENT_CENTER;
 
     private static final boolean DEFAULT_REMEMBER_ZOOM_PAN = false;
     private static final float DEFAULT_ZOOM_SCALE = 1.0f;
@@ -310,6 +316,7 @@ public class PreferenceConfiguration {
     public boolean enableFullExDisplay;
 
     //串流画面顶部居中显示
+    public String displayAlignment;
     public boolean alignDisplayTopCenter;
 
     //触控屏幕灵敏度
@@ -999,7 +1006,19 @@ private static int getFramePacingValue(Context context) {
 
         config.enableFullExDisplay=prefs.getBoolean("checkbox_enable_fullexdisplay",false);
 
-        config.alignDisplayTopCenter =prefs.getBoolean("checkbox_enable_view_top_center",false);
+        config.displayAlignment = prefs.getString(DISPLAY_ALIGNMENT_PREF_STRING, null);
+        if (config.displayAlignment == null) {
+            config.displayAlignment = prefs.getBoolean(LEGACY_TOP_CENTER_DISPLAY_PREF_STRING, false)
+                    ? DISPLAY_ALIGNMENT_TOP
+                    : DEFAULT_DISPLAY_ALIGNMENT;
+            prefs.edit().putString(DISPLAY_ALIGNMENT_PREF_STRING, config.displayAlignment).apply();
+        }
+        if (!DISPLAY_ALIGNMENT_TOP.equals(config.displayAlignment) &&
+                !DISPLAY_ALIGNMENT_BOTTOM.equals(config.displayAlignment) &&
+                !DISPLAY_ALIGNMENT_CENTER.equals(config.displayAlignment)) {
+            config.displayAlignment = DEFAULT_DISPLAY_ALIGNMENT;
+        }
+        config.alignDisplayTopCenter = DISPLAY_ALIGNMENT_TOP.equals(config.displayAlignment);
 
         config.touchSensitivityX =prefs.getInt(SEEKBAR_TOUCH_SENSITIVITY,100);
 

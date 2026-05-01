@@ -43,6 +43,17 @@
         <item>stretch</item>
     </string-array>
 
+    <string-array name="display_alignment_names">
+        <item>@string/display_alignment_center</item>
+        <item>@string/display_alignment_top</item>
+        <item>@string/display_alignment_bottom</item>
+    </string-array>
+    <string-array name="display_alignment_values" translatable="false">
+        <item>center</item>
+        <item>top</item>
+        <item>bottom</item>
+    </string-array>
+
     <string-array name="audio_config_names">
         <item>@string/audioconf_stereo</item>
         <item>@string/audioconf_51surround</item>

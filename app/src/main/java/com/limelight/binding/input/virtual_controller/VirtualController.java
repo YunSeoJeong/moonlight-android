@@ -256,8 +256,8 @@ public class VirtualController {
 
         int buttonSize = (int)(screen.heightPixels*0.06f);
         FrameLayout.LayoutParams params = new FrameLayout.LayoutParams(buttonSize, buttonSize);
-        params.leftMargin = 15;
-        params.topMargin = 15;
+        params.leftMargin = 15 + getLayoutOffsetX();
+        params.topMargin = 15 + getLayoutOffsetY();
         frame_layout.addView(buttonConfigure, params);
 
         if (!WebGamepadLayoutLoader.loadIfAvailable(this, context)) {

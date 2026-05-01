@@ -516,10 +516,15 @@ public class Game extends AppCompatActivity implements SurfaceHolder.Callback,
         rootView = streamContainer.getParent();
 
         //串流画面 顶部居中显示
-        if(prefConfig.alignDisplayTopCenter){
-            FrameLayout.LayoutParams params = (FrameLayout.LayoutParams) streamContainer.getLayoutParams();
-            params.gravity = Gravity.CENTER_HORIZONTAL|Gravity.TOP;
+        FrameLayout.LayoutParams streamParams = (FrameLayout.LayoutParams) streamContainer.getLayoutParams();
+        if (PreferenceConfiguration.DISPLAY_ALIGNMENT_TOP.equals(prefConfig.displayAlignment)) {
+            streamParams.gravity = Gravity.CENTER_HORIZONTAL | Gravity.TOP;
+        } else if (PreferenceConfiguration.DISPLAY_ALIGNMENT_BOTTOM.equals(prefConfig.displayAlignment)) {
+            streamParams.gravity = Gravity.CENTER_HORIZONTAL | Gravity.BOTTOM;
+        } else {
+            streamParams.gravity = Gravity.CENTER;
         }
+        streamContainer.setLayoutParams(streamParams);
         // Listen for touch events on the background touch view to enable trackpad mode
         // to work on areas outside of the StreamView itself. We use a separate View
         // for this rather than just handling it at the Activity level, because that

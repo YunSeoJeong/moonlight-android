@@ -522,6 +522,11 @@
     <string name="summary_fullexdisplay_mode">Allows full immersive secondary screen mode with automatically matched refresh rate and resolution. Manual settings won\'t apply in this mode.</string>
     <string name="title_top_center_display">Display in Top Center</string>
     <string name="summary_top_center_display">Streaming picture will be aligned to the top of the screen instead of centered when resolution is not native.</string>
+    <string name="title_display_alignment">Display alignment</string>
+    <string name="summary_display_alignment">Choose where the streaming picture is placed when letterboxing appears above and below.</string>
+    <string name="display_alignment_center">Center</string>
+    <string name="display_alignment_top">Top</string>
+    <string name="display_alignment_bottom">Bottom</string>
     <string name="title_touch_sensitivity">Touch Screen Sensitivity</string>
     <string name="summary_touch_sensitivity">When enabled, you can manually adjust the touch sensitivity.</string>
     <string name="title_global_touch_sensitivity">Touch Screen Sensitivity Global Effect</string>
