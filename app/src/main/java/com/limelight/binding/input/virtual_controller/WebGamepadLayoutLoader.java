@@ -9,6 +9,7 @@ import android.util.DisplayMetrics;
 import android.view.KeyEvent;
 import android.view.MotionEvent;
 import android.view.View;
+import android.view.VelocityTracker;
 
 import com.limelight.Game;
 import com.limelight.LimeLog;
@@ -482,6 +483,13 @@ public class WebGamepadLayoutLoader {
         int elementId = component.optString("id", type + ":" + label).hashCode();
         WebElement element;
 
+        if ("mouseScroll".equals(type) || "mouseScroll".equals(originalType) ||
+                "mouseScroll".equals(runtime.optString("role"))) {
+            element = new WebMouseScroll(controller, context, elementId, runtime, label, shape);
+            applyStyle(element, style);
+            return element;
+        }
+
         if ("stick".equals(type) || "stick".equals(originalType)) {
             element = new WebStick(controller, context, elementId, inputType, runtime, label, shape);
             applyStyle(element, style);
@@ -755,6 +763,23 @@ public class WebGamepadLayoutLoader {
         Game.instance.mouseButtonEvent(button, down);
     }
 
+    private static void sendMouseScroll(short verticalAmount, short horizontalAmount) {
+        if (Game.instance == null || !Game.instance.connected) {
+            return;
+        }
+        Game.instance.mouseHighResScrollEvent(verticalAmount, horizontalAmount);
+    }
+
+    private static short clampShort(double value) {
+        if (value > Short.MAX_VALUE) {
+            return Short.MAX_VALUE;
+        }
+        if (value < Short.MIN_VALUE) {
+            return Short.MIN_VALUE;
+        }
+        return (short) value;
+    }
+
     private static List<String> splitBindingValues(String value) {
         List<String> values = new ArrayList<>();
         if (value == null) {
@@ -868,6 +893,211 @@ public class WebGamepadLayoutLoader {
             paint.setColor(getDefaultColor());
             canvas.drawText(label, getWidth() / 2f,
                     getHeight() / 2f - (paint.descent() + paint.ascent()) / 2f, paint);
+        }
+    }
+
+    private static class WebMouseScroll extends WebElement {
+        private static final long FRAME_DELAY_MS = 16;
+        private static final double VELOCITY_SMOOTHING = 0.65;
+        private static final double STOP_VELOCITY = 1.0;
+        private static final double MOMENTUM_DECAY = 0.92;
+
+        private final JSONObject runtime;
+        private final String direction;
+        private final double step;
+        private final double sensitivity;
+        private final boolean invert;
+        private final boolean momentum;
+        private final Runnable scrollFrameRunnable = new Runnable() {
+            @Override
+            public void run() {
+                runScrollFrame();
+            }
+        };
+
+        private VelocityTracker velocityTracker;
+        private int activePointerId = -1;
+        private boolean dragging;
+        private boolean coasting;
+        private double velocityX;
+        private double velocityY;
+        private double pendingVertical;
+        private double pendingHorizontal;
+        private long lastFrameTime;
+
+        WebMouseScroll(VirtualController controller, Context context, int elementId,
+                       JSONObject runtime, String label, String shape) {
+            super(controller, context, elementId, label, shape);
+            this.runtime = runtime;
+            this.direction = normalize(runtime.optString("direction", "vertical"));
+            this.step = Math.max(1.0, runtime.optDouble("step", 120.0));
+            this.sensitivity = runtime.optDouble("sensitivity", 1.0);
+            this.invert = runtime.optBoolean("invert", false);
+            this.momentum = runtime.optBoolean("momentum", false);
+        }
+
+        @Override
+        protected void onElementDraw(Canvas canvas) {
+            drawBody(canvas, dragging || coasting);
+            drawLabel(canvas);
+        }
+
+        @Override
+        public boolean onElementTouchEvent(MotionEvent event) {
+            switch (event.getActionMasked()) {
+                case MotionEvent.ACTION_DOWN:
+                    startDrag(event);
+                    return true;
+                case MotionEvent.ACTION_MOVE:
+                    updateDrag(event);
+                    return true;
+                case MotionEvent.ACTION_SCROLL:
+                    sendDirectWheel(event);
+                    return true;
+                case MotionEvent.ACTION_CANCEL:
+                case MotionEvent.ACTION_UP:
+                    endDrag();
+                    return true;
+                default:
+                    return true;
+            }
+        }
+
+        @Override
+        protected void onDetachedFromWindow() {
+            stopScrollLoop();
+            recycleVelocityTracker();
+            super.onDetachedFromWindow();
+        }
+
+        private void startDrag(MotionEvent event) {
+            stopScrollLoop();
+            recycleVelocityTracker();
+            velocityTracker = VelocityTracker.obtain();
+            velocityTracker.addMovement(event);
+            activePointerId = event.getPointerId(0);
+            dragging = true;
+            coasting = false;
+            velocityX = velocityY = 0;
+            pendingVertical = pendingHorizontal = 0;
+            lastFrameTime = event.getEventTime();
+            virtualController.getHandler().post(scrollFrameRunnable);
+            setPressed(true);
+            invalidate();
+        }
+
+        private void updateDrag(MotionEvent event) {
+            if (!dragging || velocityTracker == null || activePointerId < 0) {
+                return;
+            }
+
+            int pointerIndex = event.findPointerIndex(activePointerId);
+            if (pointerIndex < 0) {
+                return;
+            }
+
+            velocityTracker.addMovement(event);
+            velocityTracker.computeCurrentVelocity(1000);
+            double newVelocityX = velocityTracker.getXVelocity(activePointerId);
+            double newVelocityY = velocityTracker.getYVelocity(activePointerId);
+            velocityX = velocityX * VELOCITY_SMOOTHING + newVelocityX * (1.0 - VELOCITY_SMOOTHING);
+            velocityY = velocityY * VELOCITY_SMOOTHING + newVelocityY * (1.0 - VELOCITY_SMOOTHING);
+        }
+
+        private void endDrag() {
+            dragging = false;
+            recycleVelocityTracker();
+
+            if (momentum && hasScrollVelocity()) {
+                coasting = true;
+                lastFrameTime = android.os.SystemClock.uptimeMillis();
+                virtualController.getHandler().removeCallbacks(scrollFrameRunnable);
+                virtualController.getHandler().post(scrollFrameRunnable);
+            } else {
+                stopScrollLoop();
+            }
+
+            setPressed(false);
+            invalidate();
+        }
+
+        private void sendDirectWheel(MotionEvent event) {
+            double multiplier = (invert ? -1.0 : 1.0) * sensitivity * step;
+            short vertical = allowsVertical()
+                    ? clampShort(event.getAxisValue(MotionEvent.AXIS_VSCROLL) * multiplier)
+                    : 0;
+            short horizontal = allowsHorizontal()
+                    ? clampShort(event.getAxisValue(MotionEvent.AXIS_HSCROLL) * multiplier)
+                    : 0;
+            if (vertical != 0 || horizontal != 0) {
+                sendMouseScroll(vertical, horizontal);
+            }
+        }
+
+        private void runScrollFrame() {
+            if (!dragging && !coasting) {
+                return;
+            }
+
+            long now = android.os.SystemClock.uptimeMillis();
+            long elapsedMs = Math.max(1, Math.min(64, now - lastFrameTime));
+            lastFrameTime = now;
+
+            double sign = invert ? -1.0 : 1.0;
+            if (allowsVertical()) {
+                double axisSize = Math.max(1, getHeight());
+                pendingVertical += (velocityY / axisSize) * step * sensitivity * sign * elapsedMs / 1000.0;
+            }
+            if (allowsHorizontal()) {
+                double axisSize = Math.max(1, getWidth());
+                pendingHorizontal += (-velocityX / axisSize) * step * sensitivity * sign * elapsedMs / 1000.0;
+            }
+
+            short vertical = clampShort((int) pendingVertical);
+            short horizontal = clampShort((int) pendingHorizontal);
+            if (vertical != 0 || horizontal != 0) {
+                sendMouseScroll(vertical, horizontal);
+                pendingVertical -= vertical;
+                pendingHorizontal -= horizontal;
+            }
+
+            if (coasting) {
+                velocityX *= MOMENTUM_DECAY;
+                velocityY *= MOMENTUM_DECAY;
+                if (!hasScrollVelocity()) {
+                    stopScrollLoop();
+                    invalidate();
+                    return;
+                }
+            }
+
+            virtualController.getHandler().postDelayed(scrollFrameRunnable, FRAME_DELAY_MS);
+        }
+
+        private boolean hasScrollVelocity() {
+            return Math.abs(velocityX) > STOP_VELOCITY || Math.abs(velocityY) > STOP_VELOCITY;
+        }
+
+        private boolean allowsVertical() {
+            return !"horizontal".equals(direction);
+        }
+
+        private boolean allowsHorizontal() {
+            return "horizontal".equals(direction) || "both".equals(direction);
+        }
+
+        private void stopScrollLoop() {
+            dragging = false;
+            coasting = false;
+            virtualController.getHandler().removeCallbacks(scrollFrameRunnable);
+        }
+
+        private void recycleVelocityTracker() {
+            if (velocityTracker != null) {
+                velocityTracker.recycle();
+                velocityTracker = null;
+            }
+            activePointerId = -1;
         }
     }
 

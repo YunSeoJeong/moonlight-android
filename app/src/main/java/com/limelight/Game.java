@@ -4133,6 +4133,18 @@ public class Game extends AppCompatActivity implements SurfaceHolder.Callback,
         }
     }
 
+    public void mouseHighResScrollEvent(short verticalAmount, short horizontalAmount) {
+        if (conn == null) {
+            return;
+        }
+        if (verticalAmount != 0) {
+            conn.sendMouseHighResScroll(verticalAmount);
+        }
+        if (horizontalAmount != 0) {
+            conn.sendMouseHighResHScroll(horizontalAmount);
+        }
+    }
+
     @Override
     public void mouseVScroll(byte amount) {
         conn.sendMouseScroll(amount);
