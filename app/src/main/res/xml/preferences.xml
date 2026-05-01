@@ -735,15 +735,9 @@
             seekbar:step="1" />
         <Preference
             android:dependency="checkbox_show_onscreen_controls"
-            android:key="import_gamepad_layout_file"
-            android:summary="@string/summary_import_gamepad_layout"
-            android:title="@string/title_import_gamepad_layout"
-            app:iconSpaceReserved="false" />
-        <Preference
-            android:dependency="checkbox_show_onscreen_controls"
-            android:key="clear_imported_gamepad_layout"
-            android:summary="@string/summary_clear_imported_gamepad_layout"
-            android:title="@string/title_clear_imported_gamepad_layout"
+            android:key="manage_virtual_gamepad_layouts"
+            android:summary="@string/summary_manage_virtual_gamepad_layouts"
+            android:title="@string/title_manage_virtual_gamepad_layouts"
             app:iconSpaceReserved="false" />
         <com.limelight.preferences.ConfirmDeleteOscPreference
             android:dialogMessage="@string/dialog_text_reset_osc"

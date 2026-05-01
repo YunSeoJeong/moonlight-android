@@ -784,6 +784,14 @@ public class StreamSettings extends AppCompatActivity {
                 });
             }
 
+            _pref = findPreference("manage_virtual_gamepad_layouts");
+            if (_pref != null) {
+                _pref.setOnPreferenceClickListener(preference -> {
+                    startActivity(new Intent(getActivity(), VirtualGamepadLayoutListActivity.class));
+                    return true;
+                });
+            }
+
             _pref = findPreference("import_special_button_file");
             if (_pref != null) {
                 _pref.setOnPreferenceClickListener(new Preference.OnPreferenceClickListener() {

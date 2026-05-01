@@ -30,29 +30,111 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
+import android.app.Activity;
+import android.content.SharedPreferences;
 
 public class WebGamepadLayoutLoader {
     private static final String ASSET_PATH = "config/gamepad.json";
     private static final String IMPORTED_FILE_NAME = "gamepad.json";
+    private static final String IMPORTED_LAYOUTS_DIR = "gamepad_layouts";
+    private static final String PREF_NAME = "gamepad_layouts";
+    private static final String ACTIVE_LAYOUT_PREF = "active_layout";
     private static final int DEFAULT_LAYER = 1;
 
+    public static class ImportedLayout {
+        public final String id;
+        public final String name;
+        public final boolean active;
+
+        ImportedLayout(String id, String name, boolean active) {
+            this.id = id;
+            this.name = name;
+            this.active = active;
+        }
+    }
+
     public static void saveImportedLayout(Context context, String json) throws JSONException {
+        saveImportedLayout(context, json, null);
+    }
+
+    public static ImportedLayout saveImportedLayout(Context context, String json, String suggestedName) throws JSONException {
         JSONObject root = new JSONObject(json);
         JSONArray resolutions = root.optJSONArray("resolutions");
         if (resolutions == null || resolutions.length() == 0) {
             throw new JSONException("Missing resolutions");
         }
 
-        try (FileOutputStream os = new FileOutputStream(getImportedLayoutFile(context))) {
+        File dir = getImportedLayoutsDir(context);
+        if (!dir.exists() && !dir.mkdirs()) {
+            throw new JSONException("Unable to create layout directory");
+        }
+
+        String displayName = getDisplayName(root, suggestedName);
+        String id = uniqueLayoutId(dir, displayName);
+        try (FileOutputStream os = new FileOutputStream(new File(dir, id))) {
             os.write(json.getBytes(StandardCharsets.UTF_8));
         } catch (Exception e) {
             throw new JSONException(e.getMessage());
         }
+
+        setActiveLayout(context, id);
+        return new ImportedLayout(id, displayName, true);
     }
 
     public static boolean clearImportedLayout(Context context) {
-        File file = getImportedLayoutFile(context);
-        return !file.exists() || file.delete();
+        String active = getActiveLayoutId(context);
+        if (active == null) {
+            File file = getImportedLayoutFile(context);
+            return !file.exists() || file.delete();
+        }
+
+        boolean removed = deleteImportedLayout(context, active);
+        clearActiveLayout(context);
+        return removed;
+    }
+
+    public static List<ImportedLayout> listImportedLayouts(Context context) {
+        List<ImportedLayout> layouts = new ArrayList<>();
+        String active = getActiveLayoutId(context);
+
+        File legacy = getImportedLayoutFile(context);
+        if (legacy.exists()) {
+            layouts.add(new ImportedLayout(IMPORTED_FILE_NAME, getLayoutName(legacy), active == null));
+        }
+
+        File dir = getImportedLayoutsDir(context);
+        File[] files = dir.listFiles((file, name) -> name.endsWith(".json"));
+        if (files != null) {
+            for (File file : files) {
+                layouts.add(new ImportedLayout(file.getName(), getLayoutName(file), file.getName().equals(active)));
+            }
+        }
+
+        Collections.sort(layouts, Comparator.comparing(layout -> layout.name.toLowerCase(Locale.US)));
+        return layouts;
+    }
+
+    public static void setActiveLayout(Context context, String id) {
+        context.getSharedPreferences(PREF_NAME, Activity.MODE_PRIVATE)
+                .edit()
+                .putString(ACTIVE_LAYOUT_PREF, id)
+                .apply();
+    }
+
+    public static void clearActiveLayout(Context context) {
+        context.getSharedPreferences(PREF_NAME, Activity.MODE_PRIVATE)
+                .edit()
+                .remove(ACTIVE_LAYOUT_PREF)
+                .apply();
+    }
+
+    public static boolean deleteImportedLayout(Context context, String id) {
+        File file = getLayoutFile(context, id);
+        boolean removed = !file.exists() || file.delete();
+        if (id != null && id.equals(getActiveLayoutId(context))) {
+            clearActiveLayout(context);
+        }
+        return removed;
     }
 
     public static boolean loadIfAvailable(final VirtualController controller, final Context context) {
@@ -137,7 +219,35 @@ public class WebGamepadLayoutLoader {
         return new File(context.getFilesDir(), IMPORTED_FILE_NAME);
     }
 
+    private static File getImportedLayoutsDir(Context context) {
+        return new File(context.getFilesDir(), IMPORTED_LAYOUTS_DIR);
+    }
+
+    private static String getActiveLayoutId(Context context) {
+        SharedPreferences prefs = context.getSharedPreferences(PREF_NAME, Activity.MODE_PRIVATE);
+        String active = prefs.getString(ACTIVE_LAYOUT_PREF, null);
+        if (active != null && getLayoutFile(context, active).exists()) {
+            return active;
+        }
+        return null;
+    }
+
+    private static File getLayoutFile(Context context, String id) {
+        if (IMPORTED_FILE_NAME.equals(id)) {
+            return getImportedLayoutFile(context);
+        }
+        return new File(getImportedLayoutsDir(context), id);
+    }
+
     private static String readLayout(Context context) {
+        String active = getActiveLayoutId(context);
+        if (active != null) {
+            String imported = readFile(getLayoutFile(context, active));
+            if (imported != null && !imported.trim().isEmpty()) {
+                return imported;
+            }
+        }
+
         String imported = readImportedLayout(context);
         if (imported != null && !imported.trim().isEmpty()) {
             return imported;
@@ -151,6 +261,10 @@ public class WebGamepadLayoutLoader {
             return null;
         }
 
+        return readFile(file);
+    }
+
+    private static String readFile(File file) {
         try (FileInputStream is = new FileInputStream(file)) {
             byte[] buffer = new byte[(int) file.length()];
             int read = is.read(buffer);
@@ -162,6 +276,50 @@ public class WebGamepadLayoutLoader {
             LimeLog.warning("Unable to read imported gamepad layout: " + e.getMessage());
             return null;
         }
+    }
+
+    private static String getLayoutName(File file) {
+        String json = readFile(file);
+        if (json != null) {
+            try {
+                return getDisplayName(new JSONObject(json), stripJsonExtension(file.getName()));
+            } catch (JSONException ignored) {
+            }
+        }
+        return stripJsonExtension(file.getName());
+    }
+
+    private static String getDisplayName(JSONObject root, String suggestedName) {
+        String name = root.optString("name", root.optString("title", ""));
+        if (name.trim().isEmpty() && suggestedName != null) {
+            name = suggestedName;
+        }
+        name = stripJsonExtension(name).trim();
+        return name.isEmpty() ? "Imported Gamepad" : name;
+    }
+
+    private static String stripJsonExtension(String value) {
+        if (value == null) {
+            return "";
+        }
+        return value.toLowerCase(Locale.US).endsWith(".json")
+                ? value.substring(0, value.length() - 5)
+                : value;
+    }
+
+    private static String uniqueLayoutId(File dir, String displayName) {
+        String base = displayName.replaceAll("[^A-Za-z0-9._-]", "_");
+        if (base.isEmpty()) {
+            base = "gamepad";
+        }
+
+        String id = base + ".json";
+        int index = 2;
+        while (new File(dir, id).exists()) {
+            id = base + "_" + index + ".json";
+            index++;
+        }
+        return id;
     }
 
     private static String readAsset(Context context) {
