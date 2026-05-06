@@ -660,6 +660,13 @@
     <string name="game_menu_server_cmd">Server Commands</string>
     <string name="game_menu_fetch_clipboard">Fetch Clipboard</string>
     <string name="game_menu_upload_clipboard">Upload Clipboard</string>
+    <string name="game_menu_view_logs">View Logs</string>
+    <string name="game_menu_debug_logs">Debug Logs</string>
+    <string name="game_menu_close">Close</string>
+    <string name="game_menu_copy">Copy</string>
+    <string name="game_menu_clear">Clear</string>
+    <string name="debug_logs_empty">(No logs)</string>
+    <string name="debug_logs_copied">Logs copied to clipboard</string>
     <string name="game_dialog_title_server_cmd_empty">No Server Commands</string>
     <string name="game_dialog_message_server_cmd_empty">Please make sure you\'re using Apollo as server software and has been granted this client with "Server Command" permission.</string>
     <string name="vdisplay_not_ready">Virtual display driver isn\'t ready on the server. Please make sure the SudoVDA driver is installed and enabled.</string>

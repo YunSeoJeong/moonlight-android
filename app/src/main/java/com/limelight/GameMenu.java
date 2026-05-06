@@ -2,8 +2,11 @@ package com.limelight;
 
 import android.app.Activity;
 import android.app.AlertDialog;
+import android.content.ClipData;
+import android.content.ClipboardManager;
 import android.content.Context;
 import android.content.SharedPreferences;
+import android.graphics.Typeface;
 import android.os.Handler;
 import android.os.Looper;
 import android.text.TextUtils;
@@ -12,6 +15,8 @@ import android.view.View;
 import android.view.ViewTreeObserver;
 import android.view.Window;
 import android.widget.ArrayAdapter;
+import android.widget.ScrollView;
+import android.widget.TextView;
 import android.widget.Toast;
 
 import com.limelight.binding.input.GameInputDevice;
@@ -285,6 +290,52 @@ public class GameMenu implements Game.GameMenuCallbacks {
         showMenuDialog(getString(R.string.game_menu_server_cmd), options.toArray(new MenuOption[options.size()]));
     }
 
+    private void showDebugLogDialog() {
+        List<String> logs = LimeLog.getRecentLogs();
+
+        int themeResId = game.getApplicationInfo().theme;
+        Context themedContext = new ContextThemeWrapper(dialogScreenContext, themeResId);
+
+        TextView tv = new TextView(themedContext);
+        tv.setTextSize(11);
+        tv.setTypeface(Typeface.MONOSPACE);
+        tv.setTextIsSelectable(true);
+        tv.setPadding(16, 16, 16, 16);
+
+        if (logs.isEmpty()) {
+            tv.setText(R.string.debug_logs_empty);
+        } else {
+            StringBuilder sb = new StringBuilder();
+            for (String line : logs) {
+                sb.append(line).append('\n');
+            }
+            tv.setText(sb.toString());
+        }
+
+        ScrollView scroll = new ScrollView(themedContext);
+        scroll.addView(tv);
+        scroll.post(() -> scroll.fullScroll(View.FOCUS_DOWN));
+
+        if (currentDialog != null) {
+            currentDialog.dismiss();
+        }
+
+        currentDialog = new AlertDialog.Builder(themedContext)
+                .setTitle(R.string.game_menu_debug_logs)
+                .setView(scroll)
+                .setPositiveButton(R.string.game_menu_close, null)
+                .setNeutralButton(R.string.game_menu_copy, (d, w) -> {
+                    ClipboardManager cm =
+                            (ClipboardManager) game.getSystemService(Context.CLIPBOARD_SERVICE);
+                    if (cm != null) {
+                        cm.setPrimaryClip(ClipData.newPlainText("LimeLog", tv.getText()));
+                        Toast.makeText(game, R.string.debug_logs_copied, Toast.LENGTH_SHORT).show();
+                    }
+                })
+                .setNegativeButton(R.string.game_menu_clear, (d, w) -> LimeLog.clearLogs())
+                .show();
+    }
+
     public void showMenu(GameInputDevice device) {
         List<MenuOption> options = new ArrayList<>();
 
@@ -324,6 +375,11 @@ public class GameMenu implements Game.GameMenuCallbacks {
             options.add(new MenuOption(getString(R.string.game_menu_rotate_screen), true,
                     game::rotateScreen));
         }
+
+        options.add(new MenuOption(getString(R.string.game_menu_view_logs), () -> {
+            hideMenu();
+            showDebugLogDialog();
+        }));
 
         options.add(new MenuOption(getString(R.string.game_menu_advanced), true,
                 () -> showAdvancedMenu(device)));

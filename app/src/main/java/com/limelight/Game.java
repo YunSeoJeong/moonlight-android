@@ -190,6 +190,7 @@ public class Game extends AppCompatActivity implements SurfaceHolder.Callback,
     private int displayWidth;
     private int displayHeight;
     private int currentOrientation;
+    private int pendingExplicitOrientation = Configuration.ORIENTATION_UNDEFINED;
 
     public NvConnection conn;
     private SpinnerDialog spinner;
@@ -1211,6 +1212,15 @@ public class Game extends AppCompatActivity implements SurfaceHolder.Callback,
     }
 
     private void setPreferredOrientationForActivity() {
+        if (shouldBypassOrientationRelock()) {
+            LimeLog.info("Orientation relock bypassed: hostResolutionRotation=" +
+                    (prefConfig != null && prefConfig.hostResolutionRotation) +
+                    " pendingExplicitOrientation=" +
+                    orientationToString(pendingExplicitOrientation) +
+                    " pendingHostResolutionRestart=" + pendingHostResolutionRestart);
+            return;
+        }
+
         Display display = getActiveDisplay(Game.this, prefConfig);
 
         // For semi-square displays, we use more complex logic to determine which orientation to use (if any)
@@ -1233,21 +1243,28 @@ public class Game extends AppCompatActivity implements SurfaceHolder.Callback,
             }
 
             if (desiredOrientation == Configuration.ORIENTATION_LANDSCAPE) {
+                LimeLog.info("Orientation relock: USER_LANDSCAPE (squarish display)");
                 setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_USER_LANDSCAPE);
             }
             else if (desiredOrientation == Configuration.ORIENTATION_PORTRAIT) {
+                LimeLog.info("Orientation relock: USER_PORTRAIT (squarish display)");
                 setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_USER_PORTRAIT);
             }
             else {
                 // If we don't have a reason to lock to portrait or landscape, allow any orientation
+                LimeLog.info("Orientation relock: FULL_USER (squarish display)");
                 setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_FULL_USER);
             }
         }
         else {
             // Lock to current orientation
             if (currentOrientation == Configuration.ORIENTATION_LANDSCAPE) {
+                LimeLog.info("Orientation relock: USER_LANDSCAPE currentOrientation=" +
+                        orientationToString(currentOrientation));
                 setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_USER_LANDSCAPE);
             } else {
+                LimeLog.info("Orientation relock: USER_PORTRAIT currentOrientation=" +
+                        orientationToString(currentOrientation));
                 setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_USER_PORTRAIT);
             }
         }
@@ -1259,6 +1276,13 @@ public class Game extends AppCompatActivity implements SurfaceHolder.Callback,
 
         boolean orientationChanged = newConfig.orientation != Configuration.ORIENTATION_UNDEFINED &&
                 currentOrientation != newConfig.orientation;
+        LimeLog.info("Game.onConfigurationChanged: newOrientation=" +
+                orientationToString(newConfig.orientation) +
+                " currentOrientation=" + orientationToString(currentOrientation) +
+                " orientationChanged=" + orientationChanged +
+                " pendingExplicitOrientation=" + orientationToString(pendingExplicitOrientation) +
+                " hostResolutionRotation=" + (prefConfig != null && prefConfig.hostResolutionRotation) +
+                " pendingHostResolutionRestart=" + pendingHostResolutionRestart);
         if (orientationChanged) {
             currentOrientation = newConfig.orientation;
         }
@@ -1266,7 +1290,10 @@ public class Game extends AppCompatActivity implements SurfaceHolder.Callback,
         // Set requested orientation for possible new screen size
         setPreferredOrientationForActivity();
 
-        if (orientationChanged) {
+        if (orientationChanged && isExplicitOrientationRequestReached(newConfig.orientation)) {
+            LimeLog.info("Explicit orientation reached: " + orientationToString(newConfig.orientation) +
+                    " requestedOrientation=" + requestedOrientationToString(getRequestedOrientation()));
+            pendingExplicitOrientation = Configuration.ORIENTATION_UNDEFINED;
             sendHostResolutionRotationCommand();
         }
 
@@ -4321,23 +4348,102 @@ public class Game extends AppCompatActivity implements SurfaceHolder.Callback,
 
     public void rotateScreen() {
         if (currentOrientation == Configuration.ORIENTATION_LANDSCAPE) {
-            currentOrientation = Configuration.ORIENTATION_PORTRAIT;
-            setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_USER_PORTRAIT);
+            pendingExplicitOrientation = Configuration.ORIENTATION_PORTRAIT;
+            LimeLog.info("rotateScreen: requesting PORTRAIT from currentOrientation=" +
+                    orientationToString(currentOrientation) +
+                    " hostResolutionRotation=" + (prefConfig != null && prefConfig.hostResolutionRotation));
+            setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_PORTRAIT);
         } else {
-            currentOrientation = Configuration.ORIENTATION_LANDSCAPE;
-            setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_USER_LANDSCAPE);
+            pendingExplicitOrientation = Configuration.ORIENTATION_LANDSCAPE;
+            LimeLog.info("rotateScreen: requesting LANDSCAPE from currentOrientation=" +
+                    orientationToString(currentOrientation) +
+                    " hostResolutionRotation=" + (prefConfig != null && prefConfig.hostResolutionRotation));
+            setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE);
         }
-        sendHostResolutionRotationCommand();
+    }
+
+    private boolean shouldBypassOrientationRelock() {
+        return prefConfig != null && prefConfig.hostResolutionRotation;
+    }
+
+    private boolean isExplicitOrientationRequestReached(int orientation) {
+        if (pendingExplicitOrientation == orientation) {
+            return true;
+        }
+
+        int requestedOrientation = getRequestedOrientation();
+        if (orientation == Configuration.ORIENTATION_PORTRAIT) {
+            return requestedOrientation == ActivityInfo.SCREEN_ORIENTATION_PORTRAIT ||
+                    requestedOrientation == ActivityInfo.SCREEN_ORIENTATION_REVERSE_PORTRAIT ||
+                    requestedOrientation == ActivityInfo.SCREEN_ORIENTATION_SENSOR_PORTRAIT ||
+                    requestedOrientation == ActivityInfo.SCREEN_ORIENTATION_USER_PORTRAIT;
+        }
+        if (orientation == Configuration.ORIENTATION_LANDSCAPE) {
+            return requestedOrientation == ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE ||
+                    requestedOrientation == ActivityInfo.SCREEN_ORIENTATION_REVERSE_LANDSCAPE ||
+                    requestedOrientation == ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE ||
+                    requestedOrientation == ActivityInfo.SCREEN_ORIENTATION_USER_LANDSCAPE;
+        }
+
+        return false;
+    }
+
+    private static String orientationToString(int orientation) {
+        switch (orientation) {
+            case Configuration.ORIENTATION_LANDSCAPE:
+                return "LANDSCAPE";
+            case Configuration.ORIENTATION_PORTRAIT:
+                return "PORTRAIT";
+            case Configuration.ORIENTATION_SQUARE:
+                return "SQUARE";
+            case Configuration.ORIENTATION_UNDEFINED:
+                return "UNDEFINED";
+            default:
+                return "UNKNOWN(" + orientation + ")";
+        }
+    }
+
+    private static String requestedOrientationToString(int requestedOrientation) {
+        switch (requestedOrientation) {
+            case ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE:
+                return "LANDSCAPE";
+            case ActivityInfo.SCREEN_ORIENTATION_PORTRAIT:
+                return "PORTRAIT";
+            case ActivityInfo.SCREEN_ORIENTATION_USER_LANDSCAPE:
+                return "USER_LANDSCAPE";
+            case ActivityInfo.SCREEN_ORIENTATION_USER_PORTRAIT:
+                return "USER_PORTRAIT";
+            case ActivityInfo.SCREEN_ORIENTATION_REVERSE_LANDSCAPE:
+                return "REVERSE_LANDSCAPE";
+            case ActivityInfo.SCREEN_ORIENTATION_REVERSE_PORTRAIT:
+                return "REVERSE_PORTRAIT";
+            case ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE:
+                return "SENSOR_LANDSCAPE";
+            case ActivityInfo.SCREEN_ORIENTATION_SENSOR_PORTRAIT:
+                return "SENSOR_PORTRAIT";
+            case ActivityInfo.SCREEN_ORIENTATION_FULL_USER:
+                return "FULL_USER";
+            case ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED:
+                return "UNSPECIFIED";
+            default:
+                return "UNKNOWN(" + requestedOrientation + ")";
+        }
     }
 
     private void sendHostResolutionRotationCommand() {
         if (!connected || prefConfig == null || !prefConfig.hostResolutionRotation || pendingHostResolutionRestart) {
+            LimeLog.warning("Skipping host resolution rotation command: connected=" + connected +
+                    " prefConfig=" + (prefConfig != null) +
+                    " hostResolutionRotation=" + (prefConfig != null && prefConfig.hostResolutionRotation) +
+                    " pendingHostResolutionRestart=" + pendingHostResolutionRestart);
+            setPreferredOrientationForActivity();
             return;
         }
 
         if (!serverCommandIds.contains(HOST_RESOLUTION_ROTATION_COMMAND_ID)) {
             LimeLog.warning("Host resolution rotation command is not advertised by the server: "
                     + HOST_RESOLUTION_ROTATION_COMMAND_ID);
+            setPreferredOrientationForActivity();
             return;
         }
 
@@ -4352,17 +4458,23 @@ public class Game extends AppCompatActivity implements SurfaceHolder.Callback,
         }
 
         String args = String.format(Locale.US, "--width %d --height %d", targetWidth, targetHeight);
+        LimeLog.info("Sending host resolution rotation command: orientation=" +
+                orientationToString(currentOrientation) + " args=" + args);
         if (!sendExecServerCmd(HOST_RESOLUTION_ROTATION_COMMAND_ID, args)) {
             LimeLog.warning("Failed to send host resolution rotation command");
+            setPreferredOrientationForActivity();
             return;
         }
 
         pendingHostResolutionRestart = true;
+        LimeLog.info("Host resolution rotation command sent; scheduling stream restart in " +
+                HOST_RESOLUTION_RESTART_DELAY_MS + " ms");
         timerHandler.postDelayed(this::restartStreamAfterHostResolutionChange, HOST_RESOLUTION_RESTART_DELAY_MS);
     }
 
     private void restartStreamAfterHostResolutionChange() {
         if (isFinishing()) {
+            LimeLog.info("Skipping host resolution restart because Game is finishing");
             return;
         }
 
@@ -4370,12 +4482,16 @@ public class Game extends AppCompatActivity implements SurfaceHolder.Callback,
         Intent reconnectIntent = LastSessionManager.buildReconnectIntent(this);
         if (reconnectIntent == null) {
             pendingHostResolutionRestart = false;
+            LimeLog.warning("Unable to build reconnect intent after host resolution rotation");
+            setPreferredOrientationForActivity();
             return;
         }
 
         LastSessionManager.clear(this);
         reconnectIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK);
+        LimeLog.info("Restarting stream after host resolution rotation");
         startActivity(reconnectIntent);
+        finish();
     }
 
     /**
