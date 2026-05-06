@@ -315,8 +315,11 @@ public class Game extends AppCompatActivity implements SurfaceHolder.Callback,
     public static final String EXTRA_APP_HDR = "HDR";
     public static final String EXTRA_SERVER_CERT = "ServerCert";
     public static final String EXTRA_VDISPLAY = "VirtualDisplay";
+    public static final String EXTRA_SERVER_COMMAND_IDS = "ServerCommandIds";
     public static final String EXTRA_SERVER_COMMANDS = "ServerCommands";
     public static final String EXTRA_DISPLAY_ID = "DisplayID";
+    private static final String HOST_RESOLUTION_ROTATION_COMMAND_ID = "artemis-set-display-resolution";
+    private static final int HOST_RESOLUTION_RESTART_DELAY_MS = 500;
 
     public static final String CLIPBOARD_IDENTIFIER = "ArtemisStreaming";
 
@@ -328,6 +331,7 @@ public class Game extends AppCompatActivity implements SurfaceHolder.Callback,
     private String uniqueId;
     private X509Certificate serverCert;
     private boolean vDisplay;
+    private ArrayList<String> serverCommandIds;
     private ArrayList<String> serverCommands;
 
     private ViewParent rootView;
@@ -347,6 +351,7 @@ public class Game extends AppCompatActivity implements SurfaceHolder.Callback,
     public boolean isInputOnly = true;
     public boolean allowChangeMouseMode = true;
     private boolean onExternelDisplay = false;
+    private boolean pendingHostResolutionRestart = false;
     private ImageButton floatingMenuButton;
     private ImageButton overlayToggleButton;
     private float floatingButtonDX, floatingButtonDY;
@@ -626,7 +631,14 @@ public class Game extends AppCompatActivity implements SurfaceHolder.Callback,
         appId = Game.this.getIntent().getIntExtra(EXTRA_APP_ID, StreamConfiguration.INVALID_APP_ID);
         uniqueId = Game.this.getIntent().getStringExtra(EXTRA_UNIQUEID);
         vDisplay = Game.this.getIntent().getBooleanExtra(EXTRA_VDISPLAY, false);
+        serverCommandIds = Game.this.getIntent().getStringArrayListExtra(EXTRA_SERVER_COMMAND_IDS);
         serverCommands = Game.this.getIntent().getStringArrayListExtra(EXTRA_SERVER_COMMANDS);
+        if (serverCommandIds == null) {
+            serverCommandIds = new ArrayList<>();
+        }
+        if (serverCommands == null) {
+            serverCommands = new ArrayList<>();
+        }
         boolean appSupportsHdr = Game.this.getIntent().getBooleanExtra(EXTRA_APP_HDR, false);
         byte[] derCertData = Game.this.getIntent().getByteArrayExtra(EXTRA_SERVER_CERT);
 
@@ -1245,8 +1257,18 @@ public class Game extends AppCompatActivity implements SurfaceHolder.Callback,
     public void onConfigurationChanged(Configuration newConfig) {
         super.onConfigurationChanged(newConfig);
 
+        boolean orientationChanged = newConfig.orientation != Configuration.ORIENTATION_UNDEFINED &&
+                currentOrientation != newConfig.orientation;
+        if (orientationChanged) {
+            currentOrientation = newConfig.orientation;
+        }
+
         // Set requested orientation for possible new screen size
         setPreferredOrientationForActivity();
+
+        if (orientationChanged) {
+            sendHostResolutionRotationCommand();
+        }
 
         if (virtualController != null) {
             // Refresh layout of OSC for possible new screen size
@@ -3918,7 +3940,7 @@ public class Game extends AppCompatActivity implements SurfaceHolder.Callback,
                 updatePipAutoEnter();
 
                 // Persist session so the app can auto-reconnect if the user backgrounds it.
-                // Cleared only on explicit Quit Remote (quit()) — not on disconnect or back.
+                // Explicit disconnect and quit clear this session before leaving.
                 saveLastSession();
 
                 // Hide the mouse cursor now after a short delay.
@@ -4260,8 +4282,20 @@ public class Game extends AppCompatActivity implements SurfaceHolder.Callback,
         super.onBackPressed();
     }
 
-    public void sendExecServerCmd(int cmdId) {
-        conn.sendExecServerCmd(cmdId);
+    public void sendExecServerCmd(int cmdIndex) {
+        if (cmdIndex < 0 || cmdIndex >= serverCommands.size()) {
+            return;
+        }
+
+        String commandId = cmdIndex < serverCommandIds.size() ? serverCommandIds.get(cmdIndex) : serverCommands.get(cmdIndex);
+        sendExecServerCmd(commandId, null);
+    }
+
+    private boolean sendExecServerCmd(String commandId, String args) {
+        if (conn != null && commandId != null && !commandId.isEmpty()) {
+            return conn.sendExecServerCmd(commandId, args);
+        }
+        return false;
     }
 
     public ArrayList<String> getServerCmds() {
@@ -4293,6 +4327,55 @@ public class Game extends AppCompatActivity implements SurfaceHolder.Callback,
             currentOrientation = Configuration.ORIENTATION_LANDSCAPE;
             setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_USER_LANDSCAPE);
         }
+        sendHostResolutionRotationCommand();
+    }
+
+    private void sendHostResolutionRotationCommand() {
+        if (!connected || prefConfig == null || !prefConfig.hostResolutionRotation || pendingHostResolutionRestart) {
+            return;
+        }
+
+        if (!serverCommandIds.contains(HOST_RESOLUTION_ROTATION_COMMAND_ID)) {
+            LimeLog.warning("Host resolution rotation command is not advertised by the server: "
+                    + HOST_RESOLUTION_ROTATION_COMMAND_ID);
+            return;
+        }
+
+        int targetWidth = prefConfig.width;
+        int targetHeight = prefConfig.height;
+        boolean targetPortrait = currentOrientation == Configuration.ORIENTATION_PORTRAIT;
+
+        if ((targetPortrait && targetWidth > targetHeight) || (!targetPortrait && targetWidth < targetHeight)) {
+            int swapped = targetWidth;
+            targetWidth = targetHeight;
+            targetHeight = swapped;
+        }
+
+        String args = String.format(Locale.US, "--width %d --height %d", targetWidth, targetHeight);
+        if (!sendExecServerCmd(HOST_RESOLUTION_ROTATION_COMMAND_ID, args)) {
+            LimeLog.warning("Failed to send host resolution rotation command");
+            return;
+        }
+
+        pendingHostResolutionRestart = true;
+        timerHandler.postDelayed(this::restartStreamAfterHostResolutionChange, HOST_RESOLUTION_RESTART_DELAY_MS);
+    }
+
+    private void restartStreamAfterHostResolutionChange() {
+        if (isFinishing()) {
+            return;
+        }
+
+        saveLastSession();
+        Intent reconnectIntent = LastSessionManager.buildReconnectIntent(this);
+        if (reconnectIntent == null) {
+            pendingHostResolutionRestart = false;
+            return;
+        }
+
+        LastSessionManager.clear(this);
+        reconnectIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK);
+        startActivity(reconnectIntent);
     }
 
     /**
@@ -4532,6 +4615,10 @@ public class Game extends AppCompatActivity implements SurfaceHolder.Callback,
                                 android.util.Base64.DEFAULT));
             } catch (Exception ignored) {}
         }
+        if (serverCommandIds != null) {
+            ed.putString(LastSessionManager.KEY_SERVER_COMMAND_IDS,
+                    new org.json.JSONArray(serverCommandIds).toString());
+        }
         if (serverCommands != null) {
             ed.putString(LastSessionManager.KEY_SERVER_COMMANDS,
                     new org.json.JSONArray(serverCommands).toString());
@@ -4541,8 +4628,7 @@ public class Game extends AppCompatActivity implements SurfaceHolder.Callback,
     }
 
     public void disconnect() {
-        // Do NOT clear the session — user may want to reconnect later.
-        // Session is only cleared in quit() when the user explicitly quits the remote.
+        LastSessionManager.clear(Game.this);
         if (prefConfig.smartClipboardSync) {
             getClipboard(-1);
         }

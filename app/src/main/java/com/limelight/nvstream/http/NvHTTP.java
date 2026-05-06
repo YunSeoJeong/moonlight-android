@@ -434,6 +434,7 @@ public class NvHTTP {
             details.vDisplayDriverReady = getServerVDisplayDriverReady(serverInfo);
         }
 
+        details.serverCommandIds = getServerCmdIds(serverInfo);
         details.serverCommands = getServerCmds(serverInfo);
 
         details.pairState = getPairState(serverInfo);
@@ -567,6 +568,10 @@ public class NvHTTP {
 
     public List<String> getServerCmds(String serverInfo) throws XmlPullParserException, IOException {
         return getXmlArray(serverInfo, "ServerCommand", false);
+    }
+
+    public List<String> getServerCmdIds(String serverInfo) throws XmlPullParserException, IOException {
+        return getXmlArray(serverInfo, "ServerCommandId", false);
     }
 
     public PairingManager.PairState getPairState() throws IOException, XmlPullParserException {

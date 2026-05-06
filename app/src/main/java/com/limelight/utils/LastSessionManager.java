@@ -47,6 +47,7 @@ public class LastSessionManager {
     public static final String KEY_VDISPLAY        = "stream_vdisplay";
     public static final String KEY_DISPLAY_ID      = "stream_display_id";
     public static final String KEY_SERVER_CERT     = "stream_server_cert";      // Base64 DER
+    public static final String KEY_SERVER_COMMAND_IDS = "stream_server_command_ids";  // JSON array
     public static final String KEY_SERVER_COMMANDS = "stream_server_commands";  // JSON array
 
     // ── UI / input state (future extension) ──────────────────────────────────
@@ -86,6 +87,16 @@ public class LastSessionManager {
         if (certBase64 != null) {
             intent.putExtra(Game.EXTRA_SERVER_CERT,
                     Base64.decode(certBase64, Base64.DEFAULT));
+        }
+
+        String commandIdsJson = p.getString(KEY_SERVER_COMMAND_IDS, null);
+        if (commandIdsJson != null) {
+            try {
+                JSONArray json = new JSONArray(commandIdsJson);
+                ArrayList<String> cmdIds = new ArrayList<>();
+                for (int i = 0; i < json.length(); i++) cmdIds.add(json.getString(i));
+                intent.putStringArrayListExtra(Game.EXTRA_SERVER_COMMAND_IDS, cmdIds);
+            } catch (JSONException ignored) {}
         }
 
         String commandsJson = p.getString(KEY_SERVER_COMMANDS, null);

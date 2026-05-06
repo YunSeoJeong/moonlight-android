@@ -87,6 +87,7 @@ public class ComputerDetails {
     public boolean vDisplayDriverReady = false;
 
     // Server commands
+    public List<String> serverCommandIds;
     public List<String> serverCommands;
 
     public ComputerDetails() {
@@ -164,6 +165,7 @@ public class ComputerDetails {
         this.vDisplayDriverReady = details.vDisplayDriverReady;
         this.vDisplaySupported = details.vDisplaySupported;
 
+        this.serverCommandIds = details.serverCommandIds;
         this.serverCommands = details.serverCommands;
     }
 

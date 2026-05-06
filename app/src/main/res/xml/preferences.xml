@@ -99,6 +99,13 @@
             android:title="@string/title_checkbox_auto_invert_video_resolution"
             app:iconSpaceReserved="false" />
 
+        <CheckBoxPreference
+            android:defaultValue="false"
+            android:key="checkbox_host_resolution_rotation"
+            android:summary="@string/summary_checkbox_host_resolution_rotation"
+            android:title="@string/title_checkbox_host_resolution_rotation"
+            app:iconSpaceReserved="false" />
+
         <ListPreference
             android:defaultValue="center"
             android:entries="@array/display_alignment_names"

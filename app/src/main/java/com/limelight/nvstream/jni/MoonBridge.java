@@ -354,7 +354,7 @@ public class MoonBridge {
 
     public static native void interruptConnection();
 
-    public static native void sendExecServerCmd(int cmdId);
+    public static native int sendExecServerCmd(String commandId, String args);
 
     public static native void sendEmptyPayload();
 

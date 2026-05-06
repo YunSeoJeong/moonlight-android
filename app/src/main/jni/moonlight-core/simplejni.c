@@ -15,10 +15,26 @@ Java_com_limelight_nvstream_jni_MoonBridge_sendMouseMove(JNIEnv *env, jclass cla
     LiSendMouseMoveEvent(deltaX, deltaY);
 }
 
-JNIEXPORT void JNICALL
+JNIEXPORT jint JNICALL
 Java_com_limelight_nvstream_jni_MoonBridge_sendExecServerCmd(JNIEnv *env, jclass clazz,
-                                                             jint cmdId) {
-    LiSendExecServerCmd(cmdId);
+                                                             jstring commandId, jstring args) {
+    if (commandId == NULL) {
+        return -1;
+    }
+
+    const char* commandIdUtf = (*env)->GetStringUTFChars(env, commandId, NULL);
+    const char* argsUtf = args != NULL ? (*env)->GetStringUTFChars(env, args, NULL) : NULL;
+
+    int ret = LiSendExecServerCmd(commandIdUtf, argsUtf);
+
+    if (argsUtf != NULL) {
+        (*env)->ReleaseStringUTFChars(env, args, argsUtf);
+    }
+    if (commandIdUtf != NULL) {
+        (*env)->ReleaseStringUTFChars(env, commandId, commandIdUtf);
+    }
+
+    return ret;
 }
 
 JNIEXPORT void JNICALL

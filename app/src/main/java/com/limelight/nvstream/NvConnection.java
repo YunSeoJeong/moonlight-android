@@ -481,10 +481,11 @@ public class NvConnection {
         }).start();
     }
 
-    public void sendExecServerCmd(final int cmdId) {
+    public boolean sendExecServerCmd(final String commandId, final String args) {
         if (!isMonkey) {
-            MoonBridge.sendExecServerCmd(cmdId);
+            return MoonBridge.sendExecServerCmd(commandId, args) == 0;
         }
+        return false;
     }
     
     public void sendMouseMove(final short deltaX, final short deltaY)
