@@ -319,7 +319,6 @@ public class Game extends AppCompatActivity implements SurfaceHolder.Callback,
     public static final String EXTRA_SERVER_COMMAND_IDS = "ServerCommandIds";
     public static final String EXTRA_SERVER_COMMANDS = "ServerCommands";
     public static final String EXTRA_DISPLAY_ID = "DisplayID";
-    private static final String HOST_RESOLUTION_ROTATION_COMMAND_ID = "artemis-set-display-resolution";
     private static final int HOST_RESOLUTION_RESTART_DELAY_MS = 500;
 
     public static final String CLIPBOARD_IDENTIFIER = "ArtemisStreaming";
@@ -1290,10 +1289,14 @@ public class Game extends AppCompatActivity implements SurfaceHolder.Callback,
         // Set requested orientation for possible new screen size
         setPreferredOrientationForActivity();
 
-        if (orientationChanged && isExplicitOrientationRequestReached(newConfig.orientation)) {
-            LimeLog.info("Explicit orientation reached: " + orientationToString(newConfig.orientation) +
-                    " requestedOrientation=" + requestedOrientationToString(getRequestedOrientation()));
-            pendingExplicitOrientation = Configuration.ORIENTATION_UNDEFINED;
+        if (orientationChanged && shouldApplyHostResolutionRotationForOrientationChange(newConfig.orientation)) {
+            LimeLog.info("Host resolution rotation triggered: " +
+                    orientationToString(newConfig.orientation) +
+                    " requestedOrientation=" + requestedOrientationToString(getRequestedOrientation()) +
+                    " pendingExplicitOrientation=" + orientationToString(pendingExplicitOrientation));
+            if (isExplicitOrientationRequestReached(newConfig.orientation)) {
+                pendingExplicitOrientation = Configuration.ORIENTATION_UNDEFINED;
+            }
             sendHostResolutionRotationCommand();
         }
 
@@ -4388,6 +4391,20 @@ public class Game extends AppCompatActivity implements SurfaceHolder.Callback,
         return false;
     }
 
+    private boolean shouldApplyHostResolutionRotationForOrientationChange(int orientation) {
+        if (prefConfig == null || !prefConfig.hostResolutionRotation || !connected ||
+                pendingHostResolutionRestart) {
+            return false;
+        }
+
+        if (pendingExplicitOrientation != Configuration.ORIENTATION_UNDEFINED) {
+            return isExplicitOrientationRequestReached(orientation);
+        }
+
+        return orientation == Configuration.ORIENTATION_PORTRAIT ||
+                orientation == Configuration.ORIENTATION_LANDSCAPE;
+    }
+
     private static String orientationToString(int orientation) {
         switch (orientation) {
             case Configuration.ORIENTATION_LANDSCAPE:
@@ -4440,9 +4457,8 @@ public class Game extends AppCompatActivity implements SurfaceHolder.Callback,
             return;
         }
 
-        if (!serverCommandIds.contains(HOST_RESOLUTION_ROTATION_COMMAND_ID)) {
-            LimeLog.warning("Host resolution rotation command is not advertised by the server: "
-                    + HOST_RESOLUTION_ROTATION_COMMAND_ID);
+        if (httpConn == null) {
+            LimeLog.warning("Skipping virtual display resolution API request because HTTP connection is unavailable");
             setPreferredOrientationForActivity();
             return;
         }
@@ -4457,19 +4473,33 @@ public class Game extends AppCompatActivity implements SurfaceHolder.Callback,
             targetHeight = swapped;
         }
 
-        String args = String.format(Locale.US, "--width %d --height %d", targetWidth, targetHeight);
-        LimeLog.info("Sending host resolution rotation command: orientation=" +
-                orientationToString(currentOrientation) + " args=" + args);
-        if (!sendExecServerCmd(HOST_RESOLUTION_ROTATION_COMMAND_ID, args)) {
-            LimeLog.warning("Failed to send host resolution rotation command");
-            setPreferredOrientationForActivity();
-            return;
-        }
+        int targetFps = Math.round(prefConfig.fps);
 
         pendingHostResolutionRestart = true;
-        LimeLog.info("Host resolution rotation command sent; scheduling stream restart in " +
-                HOST_RESOLUTION_RESTART_DELAY_MS + " ms");
-        timerHandler.postDelayed(this::restartStreamAfterHostResolutionChange, HOST_RESOLUTION_RESTART_DELAY_MS);
+        final int apiWidth = targetWidth;
+        final int apiHeight = targetHeight;
+        final int apiFps = targetFps;
+
+        LimeLog.info("Sending virtual display resolution API request: orientation=" +
+                orientationToString(currentOrientation) + " width=" + apiWidth +
+                " height=" + apiHeight + " fps=" + apiFps);
+
+        new Thread(() -> {
+            try {
+                httpConn.setVirtualDisplayResolution(apiWidth, apiHeight, apiFps);
+                LimeLog.info("Virtual display resolution API succeeded; scheduling stream resume in " +
+                        HOST_RESOLUTION_RESTART_DELAY_MS + " ms");
+                timerHandler.postDelayed(this::restartStreamAfterHostResolutionChange,
+                        HOST_RESOLUTION_RESTART_DELAY_MS);
+            } catch (Exception e) {
+                LimeLog.warning("Virtual display resolution API failed: " + e.getMessage());
+                runOnUiThread(() -> {
+                    pendingHostResolutionRestart = false;
+                    Toast.makeText(Game.this, e.getMessage(), Toast.LENGTH_LONG).show();
+                    setPreferredOrientationForActivity();
+                });
+            }
+        }).start();
     }
 
     private void restartStreamAfterHostResolutionChange() {

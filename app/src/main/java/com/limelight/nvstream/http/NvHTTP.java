@@ -40,6 +40,10 @@ import javax.net.ssl.TrustManagerFactory;
 import javax.net.ssl.X509KeyManager;
 import javax.net.ssl.X509TrustManager;
 
+import android.webkit.CookieManager;
+
+import org.json.JSONException;
+import org.json.JSONObject;
 import org.xmlpull.v1.XmlPullParser;
 import org.xmlpull.v1.XmlPullParserException;
 import org.xmlpull.v1.XmlPullParserFactory;
@@ -68,6 +72,7 @@ public class NvHTTP {
 
     private static final int DEFAULT_HTTPS_PORT = 47984;
     public static final int DEFAULT_HTTP_PORT = 47989;
+    private static final int DEFAULT_WEB_UI_HTTPS_PORT = 47990;
     public static final int SHORT_CONNECTION_TIMEOUT = 3000;
     public static final int LONG_CONNECTION_TIMEOUT = 5000;
     public static final int READ_TIMEOUT = 7000;
@@ -199,6 +204,18 @@ public class NvHTTP {
         }
 
         return new HttpUrl.Builder().scheme("https").host(baseUrlHttp.host()).port(httpsPort).build();
+    }
+
+    private HttpUrl getWebUiHttpsUrl() {
+        int webUiHttpsPort = baseUrlHttp.port() == DEFAULT_HTTP_PORT ?
+                DEFAULT_WEB_UI_HTTPS_PORT :
+                baseUrlHttp.port() + (DEFAULT_WEB_UI_HTTPS_PORT - DEFAULT_HTTP_PORT);
+
+        return new HttpUrl.Builder()
+                .scheme("https")
+                .host(baseUrlHttp.host())
+                .port(webUiHttpsPort)
+                .build();
     }
     
     public NvHTTP(ComputerDetails.AddressTuple address, int httpsPort, String uniqueId, X509Certificate serverCert, LimelightCryptoProvider cryptoProvider) throws IOException {
@@ -540,6 +557,41 @@ public class NvHTTP {
             }
             
             throw e;
+        }
+    }
+
+    private String postWebUiJson(OkHttpClient client, String path, JSONObject json) throws IOException {
+        HttpUrl url = getWebUiHttpsUrl().newBuilder()
+                .addPathSegments(path)
+                .build();
+        RequestBody requestBody = RequestBody.create(json.toString(), MediaType.parse("application/json"));
+        Request.Builder builder = new Request.Builder()
+                .url(url)
+                .post(requestBody)
+                .header("Content-Type", "application/json");
+
+        try {
+            String cookies = CookieManager.getInstance().getCookie(url.toString());
+            if (cookies != null && !cookies.isEmpty()) {
+                builder.header("Cookie", cookies);
+            }
+        } catch (Throwable ignored) {
+            // WebView cookies are optional; hosts with auth disabled can still accept the request.
+        }
+
+        try (Response response = performAndroidTlsHack(client).newCall(builder.build()).execute()) {
+            ResponseBody body = response.body();
+            String bodyString = body != null ? body.string() : "";
+
+            if (verbose) {
+                LimeLog.info(url + " -> " + bodyString);
+            }
+
+            if (!response.isSuccessful()) {
+                throw new HostHttpResponseException(response.code(), response.message());
+            }
+
+            return bodyString;
         }
     }
 
@@ -922,6 +974,29 @@ public class NvHTTP {
         }
 
         return true;
+    }
+
+    public boolean setVirtualDisplayResolution(int width, int height, int fps) throws IOException {
+        try {
+            JSONObject request = new JSONObject();
+            request.put("width", width);
+            request.put("height", height);
+            request.put("fps", fps);
+
+            String response = postWebUiJson(httpClientLongConnectTimeout,
+                    "api/virtual-display/resolution", request);
+            JSONObject responseJson = new JSONObject(response);
+
+            if (responseJson.optBoolean("status", false)) {
+                return true;
+            }
+
+            String error = responseJson.optString("error", "Failed to apply virtual display mode");
+            int errorCode = responseJson.optInt("error_code", 0);
+            throw new IOException(error + (errorCode != 0 ? " (error_code=" + errorCode + ")" : ""));
+        } catch (JSONException e) {
+            throw new IOException("Malformed virtual display resolution response", e);
+        }
     }
 
     public String getClipboard() throws IOException {
