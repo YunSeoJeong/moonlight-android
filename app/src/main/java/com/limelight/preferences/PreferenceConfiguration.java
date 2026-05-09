@@ -3,6 +3,7 @@ package com.limelight.preferences;
 import android.content.Context;
 import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
+import android.hardware.display.DisplayManager;
 import android.os.Build;
 import android.view.Display;
 
@@ -46,6 +47,7 @@ public class PreferenceConfiguration {
     private static final String LEGACY_ENFORCE_REFRESH_RATE_STRING = "checkbox_enforce_refresh_rate";
 
     static final String RESOLUTION_PREF_STRING = "list_resolution";
+    static final String NATIVE_RESOLUTION_PREF_STRING = "list_resolution_native";
     static final String FPS_PREF_STRING = "list_fps";
     static final String BITRATE_PREF_STRING = "seekbar_bitrate_kbps";
     private static final String BITRATE_PREF_OLD_STRING = "seekbar_bitrate";
@@ -248,6 +250,7 @@ public class PreferenceConfiguration {
     public static final String RES_NATIVE = "Native";
 
     public int width, height, bitrate;
+    public boolean nativeResolution;
     public float fps;
 //    public String customBitrate;
     public boolean forceTightThresholds = false; // default off
@@ -497,6 +500,45 @@ public class PreferenceConfiguration {
 
     private static int getHeightFromResolutionString(String resString) {
         return Integer.parseInt(resString.split("x")[1]);
+    }
+
+    private static void applyCurrentNativeResolution(Context context, PreferenceConfiguration config) {
+        DisplayManager displayManager = (DisplayManager) context.getSystemService(Context.DISPLAY_SERVICE);
+        Display display = null;
+
+        if (displayManager != null) {
+            if (config.enableFullExDisplay) {
+                for (Display candidate : displayManager.getDisplays()) {
+                    if (candidate.getDisplayId() != Display.DEFAULT_DISPLAY) {
+                        display = candidate;
+                        break;
+                    }
+                }
+            }
+
+            if (display == null) {
+                display = displayManager.getDisplay(Display.DEFAULT_DISPLAY);
+            }
+        }
+
+        if (display == null) {
+            return;
+        }
+
+        int width;
+        int height;
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            Display.Mode mode = display.getMode();
+            width = mode.getPhysicalWidth();
+            height = mode.getPhysicalHeight();
+        }
+        else {
+            width = display.getWidth();
+            height = display.getHeight();
+        }
+
+        config.width = Math.max(width, height);
+        config.height = Math.min(width, height);
     }
 
     private static String getResolutionString(int width, int height) {
@@ -843,6 +885,7 @@ private static int getFramePacingValue(Context context) {
             config.width = PreferenceConfiguration.getWidthFromResolutionString(resStr);
             config.height = PreferenceConfiguration.getHeightFromResolutionString(resStr);
             config.fps = Float.parseFloat(prefs.getString(FPS_PREF_STRING, PreferenceConfiguration.DEFAULT_FPS));
+            config.nativeResolution = prefs.getBoolean(NATIVE_RESOLUTION_PREF_STRING, false);
         }
 
         if (prefs.contains(LEGACY_STRETCH_PREF_STRING)) {
@@ -1013,6 +1056,10 @@ private static int getFramePacingValue(Context context) {
         config.enableNewAnalogStick=prefs.getBoolean(CHECKBOX_CHECKBOX_ENABLE_ANALOG_STICK_NEW,false);
 
         config.enableFullExDisplay=prefs.getBoolean("checkbox_enable_fullexdisplay",false);
+
+        if (config.nativeResolution) {
+            applyCurrentNativeResolution(context, config);
+        }
 
         config.displayAlignment = prefs.getString(DISPLAY_ALIGNMENT_PREF_STRING, null);
         if (config.displayAlignment == null) {

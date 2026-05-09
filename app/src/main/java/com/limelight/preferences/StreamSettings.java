@@ -63,9 +63,11 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 public class StreamSettings extends AppCompatActivity {
     private PreferenceConfiguration previousPrefs;
@@ -164,8 +166,8 @@ public class StreamSettings extends AppCompatActivity {
     }
 
     public static class SettingsFragment extends PreferenceFragmentCompat {
-        private int nativeResolutionStartIndex = Integer.MAX_VALUE;
         private boolean nativeFramerateShown = false;
+        private final Set<String> deviceNativeResolutionValues = new HashSet<>();
 
         private PreferenceConfiguration prevPrefConfig;
 
@@ -228,10 +230,10 @@ public class StreamSettings extends AppCompatActivity {
                 }
             }
 
-            if (pref.getEntryValues().length < nativeResolutionStartIndex) {
-                nativeResolutionStartIndex = pref.getEntryValues().length;
-            }
             appendPreferenceEntry(pref, newName, newValue);
+            if (!is_custom) {
+                deviceNativeResolutionValues.add(newValue);
+            }
         }
 
         private void addNativeResolutionEntries(int nativeWidth, int nativeHeight, boolean insetsRemoved, boolean is_custom) {
@@ -606,6 +608,16 @@ public class StreamSettings extends AppCompatActivity {
                 addNativeResolutionEntries(width, height, false, false);
             }
 
+            SharedPreferences nativeResolutionPrefs = getPrefs();
+            if (!nativeResolutionPrefs.contains(PreferenceConfiguration.NATIVE_RESOLUTION_PREF_STRING)) {
+                String selectedResolution = nativeResolutionPrefs.getString(PreferenceConfiguration.RESOLUTION_PREF_STRING,
+                        PreferenceConfiguration.DEFAULT_RESOLUTION);
+                nativeResolutionPrefs.edit()
+                        .putBoolean(PreferenceConfiguration.NATIVE_RESOLUTION_PREF_STRING,
+                                deviceNativeResolutionValues.contains(selectedResolution))
+                        .apply();
+            }
+
             if (!PreferenceConfiguration.readPreferences(this.getActivity()).unlockFps) {
                 // We give some extra room in case the FPS is rounded down
                 if (maxSupportedFps < 118) {
@@ -680,16 +692,7 @@ public class StreamSettings extends AppCompatActivity {
                     SharedPreferences prefs = getPrefs();
                     String valueStr = (String) newValue;
 
-                    // Detect if this value is the native resolution option
-                    CharSequence[] values = ((ListPreference)preference).getEntryValues();
-                    boolean isNativeRes = true;
-                    for (int i = 0; i < values.length; i++) {
-                        // Look for a match prior to the start of the native resolution entries
-                        if (valueStr.equals(values[i].toString()) && i < nativeResolutionStartIndex) {
-                            isNativeRes = false;
-                            break;
-                        }
-                    }
+                    boolean isNativeRes = deviceNativeResolutionValues.contains(valueStr);
 
                     // If this is native resolution, show the warning dialog
                     if (isNativeRes) {
@@ -698,6 +701,10 @@ public class StreamSettings extends AppCompatActivity {
                                 getResources().getString(R.string.text_native_res_dialog),
                                 false);
                     }
+
+                    prefs.edit()
+                            .putBoolean(PreferenceConfiguration.NATIVE_RESOLUTION_PREF_STRING, isNativeRes)
+                            .apply();
 
                     // Write the new bitrate value
                     resetBitrateToDefault(prefs, valueStr, null);
