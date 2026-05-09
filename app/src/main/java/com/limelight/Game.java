@@ -320,6 +320,10 @@ public class Game extends AppCompatActivity implements SurfaceHolder.Callback,
     public static final String EXTRA_SERVER_COMMANDS = "ServerCommands";
     public static final String EXTRA_DISPLAY_ID = "DisplayID";
     private static final int HOST_RESOLUTION_RESTART_DELAY_MS = 500;
+    private static final String HOST_RESOLUTION_STATE_PREFS = "HostResolutionState";
+    private static final String HOST_RESOLUTION_STATE_WIDTH_SUFFIX = "_width";
+    private static final String HOST_RESOLUTION_STATE_HEIGHT_SUFFIX = "_height";
+    private static final String HOST_RESOLUTION_STATE_FPS_SUFFIX = "_fps";
 
     public static final String CLIPBOARD_IDENTIFIER = "ArtemisStreaming";
 
@@ -352,6 +356,11 @@ public class Game extends AppCompatActivity implements SurfaceHolder.Callback,
     public boolean allowChangeMouseMode = true;
     private boolean onExternelDisplay = false;
     private boolean pendingHostResolutionRestart = false;
+    private RequestedResolution pendingPostConnectHostResolutionChange = null;
+    private boolean surfaceAvailableForConnection = false;
+    private int requestedStreamWidth;
+    private int requestedStreamHeight;
+    private int requestedStreamFps;
     private ImageButton floatingMenuButton;
     private ImageButton overlayToggleButton;
     private float floatingButtonDX, floatingButtonDY;
@@ -660,6 +669,10 @@ public class Game extends AppCompatActivity implements SurfaceHolder.Callback,
             return;
         }
 
+        requestedStreamWidth = displayWidth;
+        requestedStreamHeight = displayHeight;
+        requestedStreamFps = Math.round(prefConfig.fps);
+
         // Initialize the MediaCodec helper before creating the decoder
         GlPreferences glPrefs = GlPreferences.readPreferences(this);
         MediaCodecHelper.initialize(this, glPrefs.glRenderer);
@@ -845,8 +858,8 @@ public class Game extends AppCompatActivity implements SurfaceHolder.Callback,
 
         StreamConfiguration config = new StreamConfiguration.Builder()
                 .setResolution(
-                        displayWidth,
-                        displayHeight
+                        requestedStreamWidth,
+                        requestedStreamHeight
                 )
                 .setLaunchRefreshRate(prefConfig.fps)
                 .setRefreshRate(chosenFrameRate)
@@ -930,21 +943,14 @@ public class Game extends AppCompatActivity implements SurfaceHolder.Callback,
             return;
         }
 
+        maybeRequestInitialHostResolutionChange();
+
         // The connection will be started when the surface gets created
         //streamContainer.getHolder().addCallback(this);
 
         streamContainer.setOnSurfaceAvailable(() -> {
-            if (!attemptedConnection) {
-                LimeLog.info("Surface is available, starting connection...");
-                attemptedConnection = true;
-
-                // Der Decoder erhält die jeweils aktive Oberfläche vom Container
-                decoderRenderer.setRenderTarget(streamContainer.getSurface());
-
-                // Starten Sie die NvConnection
-                conn.start(new AndroidAudioRenderer(Game.this, prefConfig.playHostAudio),
-                        decoderRenderer, Game.this);
-            }
+            surfaceAvailableForConnection = true;
+            startConnectionIfReady();
         });
 
         gameMenuCallbacks = new GameMenu(this);
@@ -1299,6 +1305,8 @@ public class Game extends AppCompatActivity implements SurfaceHolder.Callback,
             }
             sendHostResolutionRotationCommand();
         }
+
+        maybeRequestHostResolutionChangeForUpdatedPreferences("configuration change");
 
         if (virtualController != null) {
             // Refresh layout of OSC for possible new screen size
@@ -1851,6 +1859,20 @@ public class Game extends AppCompatActivity implements SurfaceHolder.Callback,
         streamContainer.onDestroy();
     }
 
+    private void startConnectionIfReady() {
+        if (attemptedConnection || !surfaceAvailableForConnection ||
+                conn == null || decoderRenderer == null) {
+            return;
+        }
+
+        LimeLog.info("Surface is available, starting connection...");
+        attemptedConnection = true;
+
+        decoderRenderer.setRenderTarget(streamContainer.getSurface());
+        conn.start(new AndroidAudioRenderer(Game.this, prefConfig.playHostAudio),
+                decoderRenderer, Game.this);
+    }
+
     @Override
     protected void onResume() {
         super.onResume();
@@ -1873,7 +1895,12 @@ public class Game extends AppCompatActivity implements SurfaceHolder.Callback,
                 reconnectIntent.addFlags(
                         Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK);
                 startActivity(reconnectIntent);
+                return;
             }
+        }
+
+        if (connected) {
+            maybeRequestHostResolutionChangeForUpdatedPreferences("resume");
         }
     }
 
@@ -3972,6 +3999,13 @@ public class Game extends AppCompatActivity implements SurfaceHolder.Callback,
                 // Persist session so the app can auto-reconnect if the user backgrounds it.
                 // Explicit disconnect and quit clear this session before leaving.
                 saveLastSession();
+                RequestedResolution postConnectHostResolutionChange = pendingPostConnectHostResolutionChange;
+                if (postConnectHostResolutionChange == null) {
+                    saveLastRequestedHostResolution();
+                } else {
+                    LimeLog.info("Deferring host resolution state save until post-connect API succeeds: target=" +
+                            postConnectHostResolutionChange);
+                }
 
                 // Hide the mouse cursor now after a short delay.
                 // Doing it before dismissing the spinner seems to be undone
@@ -4001,6 +4035,15 @@ public class Game extends AppCompatActivity implements SurfaceHolder.Callback,
 
                 if (prefConfig.preventPacketLoss) {
                     timerHandler.postDelayed(backgroundPing, 1000);
+                }
+
+                if (postConnectHostResolutionChange != null) {
+                    pendingPostConnectHostResolutionChange = null;
+                    sendHostResolutionChangeCommand(
+                            postConnectHostResolutionChange.width,
+                            postConnectHostResolutionChange.height,
+                            postConnectHostResolutionChange.fps,
+                            "initial host resolution sync after reconnect");
                 }
             }
         });
@@ -4349,6 +4392,154 @@ public class Game extends AppCompatActivity implements SurfaceHolder.Callback,
         }
     }
 
+    private static class RequestedResolution {
+        final int width;
+        final int height;
+        final int fps;
+
+        RequestedResolution(int width, int height, int fps) {
+            this.width = width;
+            this.height = height;
+            this.fps = fps;
+        }
+
+        boolean matches(RequestedResolution other) {
+            return other != null && width == other.width && height == other.height && fps == other.fps;
+        }
+
+        @NonNull
+        @Override
+        public String toString() {
+            return width + "x" + height + "@" + fps;
+        }
+    }
+
+    private Display getCurrentDisplayForResolution() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            DisplayManager displayManager = getSystemService(DisplayManager.class);
+            if (displayManager != null) {
+                int displayId = getIntent().getIntExtra(EXTRA_DISPLAY_ID, Display.DEFAULT_DISPLAY);
+                Display display = displayManager.getDisplay(displayId);
+                if (display != null) {
+                    return display;
+                }
+            }
+        }
+
+        return getWindowManager().getDefaultDisplay();
+    }
+
+    private RequestedResolution resolveRequestedResolution(PreferenceConfiguration config) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M
+                && onExternelDisplay
+                && config.renderMode == 0) {
+            Display.Mode currentMode = getCurrentDisplayForResolution().getMode();
+            return new RequestedResolution(
+                    currentMode.getPhysicalWidth(),
+                    currentMode.getPhysicalHeight(),
+                    Math.round(currentMode.getRefreshRate()));
+        }
+
+        int targetWidth = config.width;
+        int targetHeight = config.height;
+        int orientation = config.autoOrientation ? currentOrientation : Configuration.ORIENTATION_LANDSCAPE;
+        if (orientation == Configuration.ORIENTATION_UNDEFINED) {
+            orientation = getResources().getConfiguration().orientation;
+        }
+
+        if (orientation == Configuration.ORIENTATION_PORTRAIT && config.autoInvertVideoResolution) {
+            int swapped = targetWidth;
+            targetWidth = targetHeight;
+            targetHeight = swapped;
+        }
+
+        return new RequestedResolution(targetWidth, targetHeight, Math.round(config.fps));
+    }
+
+    private String getHostResolutionStateKeyPrefix() {
+        String pcUuid = getIntent().getStringExtra(EXTRA_PC_UUID);
+        String hostKey = pcUuid != null && !pcUuid.isEmpty() ? pcUuid : host;
+        return String.valueOf(hostKey) + "_";
+    }
+
+    private RequestedResolution getLastRequestedHostResolution() {
+        SharedPreferences prefs = getSharedPreferences(HOST_RESOLUTION_STATE_PREFS, MODE_PRIVATE);
+        String keyPrefix = getHostResolutionStateKeyPrefix();
+        int width = prefs.getInt(keyPrefix + HOST_RESOLUTION_STATE_WIDTH_SUFFIX, 0);
+        int height = prefs.getInt(keyPrefix + HOST_RESOLUTION_STATE_HEIGHT_SUFFIX, 0);
+        int fps = prefs.getInt(keyPrefix + HOST_RESOLUTION_STATE_FPS_SUFFIX, 0);
+        if (width <= 0 || height <= 0 || fps <= 0) {
+            return null;
+        }
+
+        return new RequestedResolution(width, height, fps);
+    }
+
+    private void saveLastRequestedHostResolution() {
+        saveLastRequestedHostResolution(new RequestedResolution(
+                requestedStreamWidth,
+                requestedStreamHeight,
+                requestedStreamFps));
+    }
+
+    private void saveLastRequestedHostResolution(RequestedResolution resolution) {
+        String keyPrefix = getHostResolutionStateKeyPrefix();
+        getSharedPreferences(HOST_RESOLUTION_STATE_PREFS, MODE_PRIVATE).edit()
+                .putInt(keyPrefix + HOST_RESOLUTION_STATE_WIDTH_SUFFIX, resolution.width)
+                .putInt(keyPrefix + HOST_RESOLUTION_STATE_HEIGHT_SUFFIX, resolution.height)
+                .putInt(keyPrefix + HOST_RESOLUTION_STATE_FPS_SUFFIX, resolution.fps)
+                .apply();
+    }
+
+    private void maybeRequestInitialHostResolutionChange() {
+        if (prefConfig == null || !prefConfig.autoHostResolutionChange || httpConn == null) {
+            return;
+        }
+
+        RequestedResolution target = new RequestedResolution(
+                requestedStreamWidth,
+                requestedStreamHeight,
+                requestedStreamFps);
+        RequestedResolution lastRequested = getLastRequestedHostResolution();
+        boolean reconnectingSavedSession = LastSessionManager.hasSession(this);
+        if ((lastRequested == null && !reconnectingSavedSession) ||
+                (lastRequested != null && lastRequested.matches(target))) {
+            return;
+        }
+
+        pendingPostConnectHostResolutionChange = target;
+        LimeLog.info("Initial host resolution sync queued for post-connect: previous=" + lastRequested +
+                " target=" + target +
+                " reconnectingSavedSession=" + reconnectingSavedSession);
+    }
+
+    private boolean maybeRequestHostResolutionChangeForUpdatedPreferences(String reason) {
+        if (prefConfig == null || !prefConfig.autoHostResolutionChange || !connected ||
+                pendingHostResolutionRestart) {
+            return false;
+        }
+
+        PreferenceConfiguration updatedConfig = PreferenceConfiguration.readPreferences(this);
+        if (!updatedConfig.autoHostResolutionChange) {
+            return false;
+        }
+
+        RequestedResolution current = new RequestedResolution(
+                requestedStreamWidth,
+                requestedStreamHeight,
+                requestedStreamFps);
+        RequestedResolution target = resolveRequestedResolution(updatedConfig);
+        if (current.matches(target)) {
+            return false;
+        }
+
+        LimeLog.info("Host resolution sync triggered by " + reason +
+                ": current=" + current + " target=" + target);
+        sendHostResolutionChangeCommand(target.width, target.height, target.fps,
+                "requested stream resolution change");
+        return true;
+    }
+
     public void rotateScreen() {
         if (currentOrientation == Configuration.ORIENTATION_LANDSCAPE) {
             pendingExplicitOrientation = Configuration.ORIENTATION_PORTRAIT;
@@ -4475,7 +4666,6 @@ public class Game extends AppCompatActivity implements SurfaceHolder.Callback,
 
         int targetFps = Math.round(prefConfig.fps);
 
-        pendingHostResolutionRestart = true;
         final int apiWidth = targetWidth;
         final int apiHeight = targetHeight;
         final int apiFps = targetFps;
@@ -4484,9 +4674,34 @@ public class Game extends AppCompatActivity implements SurfaceHolder.Callback,
                 orientationToString(currentOrientation) + " width=" + apiWidth +
                 " height=" + apiHeight + " fps=" + apiFps);
 
+        sendHostResolutionChangeCommand(apiWidth, apiHeight, apiFps, "host resolution rotation");
+    }
+
+    private void sendHostResolutionChangeCommand(int apiWidth, int apiHeight, int apiFps, String reason) {
+        if (!connected || pendingHostResolutionRestart) {
+            LimeLog.warning("Skipping virtual display resolution API request: connected=" + connected +
+                    " pendingHostResolutionRestart=" + pendingHostResolutionRestart +
+                    " reason=" + reason);
+            setPreferredOrientationForActivity();
+            return;
+        }
+
+        if (httpConn == null) {
+            LimeLog.warning("Skipping virtual display resolution API request because HTTP connection is unavailable");
+            setPreferredOrientationForActivity();
+            return;
+        }
+
+        pendingHostResolutionRestart = true;
+        RequestedResolution target = new RequestedResolution(apiWidth, apiHeight, apiFps);
+
+        LimeLog.info("Sending virtual display resolution API request: reason=" + reason +
+                " target=" + target);
+
         new Thread(() -> {
             try {
                 httpConn.setVirtualDisplayResolution(apiWidth, apiHeight, apiFps);
+                saveLastRequestedHostResolution(target);
                 LimeLog.info("Virtual display resolution API succeeded; scheduling stream resume in " +
                         HOST_RESOLUTION_RESTART_DELAY_MS + " ms");
                 timerHandler.postDelayed(this::restartStreamAfterHostResolutionChange,

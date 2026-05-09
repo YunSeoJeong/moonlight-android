@@ -6,6 +6,7 @@
 5. 레터박스 BOTTOM 옵션 추가
 6. 자동회전 지원
 7. 폴드형 폼팩터에서도 네이티브 해상도 적용
+8. 클라이언트 해상도 변경시 호스트 해상도가 따라오는 옵션
 
 ## 가상 패드 편집 에디터
 https://yunseojeong.github.io/virtual-gamepad-editor/

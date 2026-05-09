@@ -106,6 +106,13 @@
             android:title="@string/title_checkbox_host_resolution_rotation"
             app:iconSpaceReserved="false" />
 
+        <CheckBoxPreference
+            android:defaultValue="false"
+            android:key="checkbox_auto_host_resolution_change"
+            android:summary="@string/summary_checkbox_auto_host_resolution_change"
+            android:title="@string/title_checkbox_auto_host_resolution_change"
+            app:iconSpaceReserved="false" />
+
         <ListPreference
             android:defaultValue="center"
             android:entries="@array/display_alignment_names"

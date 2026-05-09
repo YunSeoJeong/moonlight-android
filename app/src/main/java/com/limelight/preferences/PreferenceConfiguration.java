@@ -57,6 +57,7 @@ public class PreferenceConfiguration {
     private static final String USE_VIRTUAL_DISPLAY_PREF_STRING = "checkbox_use_virtual_display";
     private static final String AUTO_INVERT_VIDEO_RESOLUTION_PREF_STRING = "checkbox_auto_invert_video_resolution";
     private static final String HOST_RESOLUTION_ROTATION_PREF_STRING = "checkbox_host_resolution_rotation";
+    private static final String AUTO_HOST_RESOLUTION_CHANGE_PREF_STRING = "checkbox_auto_host_resolution_change";
     private static final String RESOLUTION_SCALE_FACTOR_PREF_STRING = "seekbar_resolution_scale_factor";
     private static final String RESUME_WITHOUT_CONFIRM_PREF_STRING = "checkbox_resume_without_confirm";
     private static final String VIDEO_SCALE_MODE_PREF_STRING = "list_video_scale_mode";
@@ -160,6 +161,7 @@ public class PreferenceConfiguration {
     private static final String DEFAULT_VIDEO_SCALE_MODE = "fit";
     private static final boolean DEFAULT_AUTO_INVERT_VIDEO_RESOLUTION = true;
     private static final boolean DEFAULT_HOST_RESOLUTION_ROTATION = false;
+    private static final boolean DEFAULT_AUTO_HOST_RESOLUTION_CHANGE = false;
     private static final int DEFAULT_RESOLUTION_SCALE_FACTOR = 100;
     private static final boolean DEFAULT_RESUME_WITHOUT_CONFIRM = false;
     private static final boolean DEFAULT_SOPS = true;
@@ -309,6 +311,7 @@ public class PreferenceConfiguration {
     //Invert video width/height
     public boolean autoInvertVideoResolution;
     public boolean hostResolutionRotation;
+    public boolean autoHostResolutionChange;
     public int resolutionScaleFactor;
     public boolean resumeWithoutConfirm;
     //竖屏模式
@@ -1032,6 +1035,7 @@ private static int getFramePacingValue(Context context) {
         config.autoOrientation = prefs.getBoolean(CHECKBOX_AUTO_ORIENTATION,false);
         config.autoInvertVideoResolution = prefs.getBoolean(AUTO_INVERT_VIDEO_RESOLUTION_PREF_STRING, DEFAULT_AUTO_INVERT_VIDEO_RESOLUTION);
         config.hostResolutionRotation = prefs.getBoolean(HOST_RESOLUTION_ROTATION_PREF_STRING, DEFAULT_HOST_RESOLUTION_ROTATION);
+        config.autoHostResolutionChange = prefs.getBoolean(AUTO_HOST_RESOLUTION_CHANGE_PREF_STRING, DEFAULT_AUTO_HOST_RESOLUTION_CHANGE);
         config.resolutionScaleFactor = prefs.getInt(RESOLUTION_SCALE_FACTOR_PREF_STRING, DEFAULT_RESOLUTION_SCALE_FACTOR);
 
         config.resumeWithoutConfirm = prefs.getBoolean(RESUME_WITHOUT_CONFIRM_PREF_STRING, DEFAULT_RESUME_WITHOUT_CONFIRM);

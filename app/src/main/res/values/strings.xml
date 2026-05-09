@@ -211,6 +211,8 @@
     <string name="summary_checkbox_auto_invert_video_resolution">Automatically invert the width and height of the video stream when in portrait mode.\nFor example: 1920x1080 will become 1080x1920.</string>
     <string name="title_checkbox_host_resolution_rotation">Rotate Host Resolution</string>
     <string name="summary_checkbox_host_resolution_rotation">When the screen rotates during streaming, call Apollo\'s virtual display resolution API to change the active host display size and refresh rate.</string>
+    <string name="title_checkbox_auto_host_resolution_change">Sync Host Resolution Changes</string>
+    <string name="summary_checkbox_auto_host_resolution_change">When the requested stream resolution changes during a session or before resuming one, call Apollo\'s virtual display resolution API to update the active host display size and refresh rate.</string>
     <string name="title_video_scale_mode">Video Scale Mode</string>
     <string name="summary_video_scale_mode">Select between Fit, Fill and Stretch</string>
     <string name="video_scale_mode_fit">Fit</string>
