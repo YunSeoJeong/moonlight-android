@@ -5,6 +5,7 @@
 4. 트랙패드 관성 ON/OFF, 감도 설정 추가
 5. 레터박스 BOTTOM 옵션 추가
 6. 자동회전 지원
+7. 폴드형 폼팩터에서도 네이티브 해상도 적용
 
 ## 가상 패드 편집 에디터
 https://yunseojeong.github.io/virtual-gamepad-editor/

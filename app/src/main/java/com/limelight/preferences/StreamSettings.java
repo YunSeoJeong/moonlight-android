@@ -197,6 +197,16 @@ public class StreamSettings extends AppCompatActivity {
             pref.setEntryValues(newValues);
         }
 
+        private boolean hasPreferenceEntry(ListPreference pref, String entryValue) {
+            for (CharSequence value : pref.getEntryValues()) {
+                if (entryValue.equals(value.toString())) {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
         private void addNativeResolutionEntry(int nativeWidth, int nativeHeight, boolean insetsRemoved, boolean portrait, boolean is_custom) {
             ListPreference pref = (ListPreference) findPreference(PreferenceConfiguration.RESOLUTION_PREF_STRING);
 
@@ -223,11 +233,9 @@ public class StreamSettings extends AppCompatActivity {
             String newValue = nativeWidth+"x"+nativeHeight;
 
             // Check if the native resolution is already present
-            for (CharSequence value : pref.getEntryValues()) {
-                if (newValue.equals(value.toString())) {
-                    // It is present in the default list, so don't add it again
-                    return;
-                }
+            if (hasPreferenceEntry(pref, newValue)) {
+                // It is present in the default list, so don't add it again
+                return;
             }
 
             appendPreferenceEntry(pref, newName, newValue);
@@ -241,6 +249,25 @@ public class StreamSettings extends AppCompatActivity {
                 addNativeResolutionEntry(nativeHeight, nativeWidth, insetsRemoved, true, is_custom);
             }
             addNativeResolutionEntry(nativeWidth, nativeHeight, insetsRemoved, false, is_custom);
+        }
+
+        private void syncSelectedNativeResolutionToCurrentDisplay() {
+            if (!prevPrefConfig.nativeResolution) {
+                return;
+            }
+
+            ListPreference pref = (ListPreference) findPreference(PreferenceConfiguration.RESOLUTION_PREF_STRING);
+            String currentNativeResolution = prevPrefConfig.width+"x"+prevPrefConfig.height;
+
+            // If the selected native resolution was pruned because the foldable display changed,
+            // add the active native mode back so ListPreference can render a selected item.
+            if (!hasPreferenceEntry(pref, currentNativeResolution)) {
+                addNativeResolutionEntry(prevPrefConfig.width, prevPrefConfig.height, false, false, false);
+            }
+
+            if (hasPreferenceEntry(pref, currentNativeResolution)) {
+                setValue(PreferenceConfiguration.RESOLUTION_PREF_STRING, currentNativeResolution);
+            }
         }
 
         private void addNativeFrameRateEntry(float framerate, boolean is_custom) {
@@ -597,6 +624,8 @@ public class StreamSettings extends AppCompatActivity {
                     }
                     // Never remove 720p
                 }
+
+                syncSelectedNativeResolutionToCurrentDisplay();
             }
             else {
                 // We can get the true metrics via the getRealMetrics() function (unlike the lies
@@ -606,6 +635,8 @@ public class StreamSettings extends AppCompatActivity {
                 int width = Math.max(metrics.widthPixels, metrics.heightPixels);
                 int height = Math.min(metrics.widthPixels, metrics.heightPixels);
                 addNativeResolutionEntries(width, height, false, false);
+
+                syncSelectedNativeResolutionToCurrentDisplay();
             }
 
             SharedPreferences nativeResolutionPrefs = getPrefs();
