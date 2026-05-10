@@ -680,6 +680,9 @@
     <string name="clipboard_sync_unsupported">This server does not support clipboard sync. Please install or upgrade your server to the latest version of Apollo.</string>
     <string name="send_clipboard_failed">Failed to send clipboard: </string>
     <string name="external_display_info">External Display connected with: %1$dx%2$d at %3$.1fHz</string>
+    <string name="title_checkbox_dual_screen_virtual_gamepad">Dual-screen virtual gamepad</string>
+    <string name="summary_checkbox_dual_screen_virtual_gamepad">Show displayTarget=sub controls on the second screen while streaming.</string>
+    <string name="dual_screen_virtual_gamepad_unavailable">Dual-screen virtual gamepad is not available on this device state.</string>
     <string name="notification_channel_name">External Display Control</string>
     <string name="notification_title">External Display Active</string>
     <string name="notification_text">Tap to open touchpad controller</string>

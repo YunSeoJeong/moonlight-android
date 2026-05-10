@@ -46,6 +46,7 @@ import com.limelight.GameMenu;
 import com.limelight.LimeLog;
 import com.limelight.R;
 import com.limelight.StartExternalDisplayControlReceiver;
+import com.limelight.binding.input.virtual_controller.VirtualController;
 import com.limelight.binding.input.virtual_controller.keyboard.KeyBoardLayoutController;
 import com.limelight.preferences.PreferenceConfiguration;
 import com.limelight.ui.ExternalControllerView;
@@ -66,6 +67,7 @@ public class ExternalDisplayControlActivity extends AppCompatActivity implements
     private ExternalControllerView rootLayout;
     private ImageButton zoomButton;
     private KeyBoardLayoutController keyBoardLayoutController;
+    private VirtualController virtualController;
 
     private boolean isKeyboardVisible = false;
 
@@ -440,6 +442,10 @@ public class ExternalDisplayControlActivity extends AppCompatActivity implements
         bottomRightButton.setFocusable(false);
         bottomRightButton.addView(createImageButton(R.drawable.ic_fullscreen_keyboard, v -> _toggleFullKeyboard()));
         rootLayout.addView(bottomRightButton);
+
+        if (prefConfig.dualScreenVirtualGamepad) {
+            initVirtualController();
+        }
     }
 
     /**
@@ -456,6 +462,17 @@ public class ExternalDisplayControlActivity extends AppCompatActivity implements
         keyBoardLayoutController.setViewCallbacks(this);
         keyBoardLayoutController.refreshLayout();
         keyBoardLayoutController.show();
+    }
+
+    private void initVirtualController() {
+        if (Game.instance == null) {
+            return;
+        }
+
+        virtualController = new VirtualController(Game.instance.getControllerHandler(),
+                rootLayout, null, this, VirtualController.DISPLAY_TARGET_SUB, false);
+        virtualController.refreshLayout();
+        virtualController.show();
     }
 
     /**

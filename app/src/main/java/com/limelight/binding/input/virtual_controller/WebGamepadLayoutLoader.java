@@ -155,10 +155,8 @@ public class WebGamepadLayoutLoader {
 
             JSONArray components = resolution.optJSONArray("components");
             JSONArray mouseRegions = resolution.optJSONArray("mouseRegions");
-            if ((components == null || components.length() == 0) &&
-                    (mouseRegions == null || mouseRegions.length() == 0)) {
-                return false;
-            }
+            boolean resolutionTargetMatchesExplicitly =
+                    isExplicitDisplayTargetMatch(resolution, layoutTarget.displayTarget);
 
             LayoutTransform transform = getLayoutTransform(resolution, context, layoutTarget);
             int added = 0;
@@ -172,6 +170,10 @@ public class WebGamepadLayoutLoader {
                     if (component == null) {
                         continue;
                     }
+                    if (!matchesComponentDisplayTarget(component, layoutTarget.displayTarget,
+                            resolutionTargetMatchesExplicitly)) {
+                        continue;
+                    }
                     if (isMouseRegion(component)) {
                         mouseRegionList.add(component);
                     } else {
@@ -183,7 +185,8 @@ public class WebGamepadLayoutLoader {
             if (mouseRegions != null) {
                 for (int i = 0; i < mouseRegions.length(); i++) {
                     JSONObject region = mouseRegions.optJSONObject(i);
-                    if (region != null) {
+                    if (region != null && matchesComponentDisplayTarget(region,
+                            layoutTarget.displayTarget, resolutionTargetMatchesExplicitly)) {
                         mouseRegionList.add(region);
                     }
                 }
@@ -206,7 +209,7 @@ public class WebGamepadLayoutLoader {
                 }
             }
 
-            if (added == 0) {
+            if (added == 0 && !resolutionTargetMatchesExplicitly) {
                 return false;
             }
 
@@ -346,7 +349,9 @@ public class WebGamepadLayoutLoader {
         int targetWidth = layoutTarget.width;
         int targetHeight = layoutTarget.height;
         JSONObject best = null;
+        JSONObject bestExplicitEmpty = null;
         long bestScore = Long.MAX_VALUE;
+        long bestExplicitEmptyScore = Long.MAX_VALUE;
 
         for (int i = 0; i < resolutions.length(); i++) {
             JSONObject candidate = resolutions.optJSONObject(i);
@@ -354,24 +359,157 @@ public class WebGamepadLayoutLoader {
                 continue;
             }
 
-            JSONArray components = candidate.optJSONArray("components");
-            JSONArray mouseRegions = candidate.optJSONArray("mouseRegions");
-            boolean empty = (components == null || components.length() == 0) &&
-                    (mouseRegions == null || mouseRegions.length() == 0);
-            if (empty) {
+            CandidateDisplayMatch displayMatch = getCandidateDisplayMatch(candidate, layoutTarget.displayTarget);
+            if (!displayMatch.matches) {
                 continue;
             }
 
             long widthDelta = candidate.optInt("width") - targetWidth;
             long heightDelta = candidate.optInt("height") - targetHeight;
             long score = widthDelta * widthDelta + heightDelta * heightDelta;
-            if (score < bestScore) {
-                bestScore = score;
-                best = candidate;
+
+            if (hasTargetContent(candidate, layoutTarget.displayTarget,
+                    displayMatch.resolutionTargetMatchesExplicitly)) {
+                if (score < bestScore) {
+                    bestScore = score;
+                    best = candidate;
+                }
+            } else if (displayMatch.resolutionTargetMatchesExplicitly &&
+                    score < bestExplicitEmptyScore) {
+                bestExplicitEmptyScore = score;
+                bestExplicitEmpty = candidate;
             }
         }
 
-        return best;
+        return best != null ? best : bestExplicitEmpty;
+    }
+
+    private static CandidateDisplayMatch getCandidateDisplayMatch(JSONObject resolution,
+                                                                  String displayTarget) {
+        String explicitTarget = readDisplayTarget(resolution);
+        if (!explicitTarget.isEmpty()) {
+            return new CandidateDisplayMatch(targetEquals(explicitTarget, displayTarget),
+                    targetEquals(explicitTarget, displayTarget));
+        }
+
+        if (isMainDisplayTarget(displayTarget)) {
+            return new CandidateDisplayMatch(true, false);
+        }
+
+        return new CandidateDisplayMatch(hasExplicitChildTarget(resolution, displayTarget), false);
+    }
+
+    private static boolean hasTargetContent(JSONObject resolution, String displayTarget,
+                                            boolean resolutionTargetMatchesExplicitly) {
+        JSONArray components = resolution.optJSONArray("components");
+        if (hasTargetContent(components, displayTarget, resolutionTargetMatchesExplicitly)) {
+            return true;
+        }
+
+        return hasTargetContent(resolution.optJSONArray("mouseRegions"), displayTarget,
+                resolutionTargetMatchesExplicitly);
+    }
+
+    private static boolean hasTargetContent(JSONArray components, String displayTarget,
+                                            boolean resolutionTargetMatchesExplicitly) {
+        if (components == null) {
+            return false;
+        }
+
+        for (int i = 0; i < components.length(); i++) {
+            JSONObject component = components.optJSONObject(i);
+            if (component != null && matchesComponentDisplayTarget(component, displayTarget,
+                    resolutionTargetMatchesExplicitly)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static boolean hasExplicitChildTarget(JSONObject resolution, String displayTarget) {
+        JSONArray components = resolution.optJSONArray("components");
+        if (hasExplicitChildTarget(components, displayTarget)) {
+            return true;
+        }
+        return hasExplicitChildTarget(resolution.optJSONArray("mouseRegions"), displayTarget);
+    }
+
+    private static boolean hasExplicitChildTarget(JSONArray components, String displayTarget) {
+        if (components == null) {
+            return false;
+        }
+
+        for (int i = 0; i < components.length(); i++) {
+            JSONObject component = components.optJSONObject(i);
+            if (component == null) {
+                continue;
+            }
+            String componentTarget = readDisplayTarget(component);
+            if (!componentTarget.isEmpty() && targetEquals(componentTarget, displayTarget)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static boolean isExplicitDisplayTargetMatch(JSONObject object, String displayTarget) {
+        String explicitTarget = readDisplayTarget(object);
+        return !explicitTarget.isEmpty() && targetEquals(explicitTarget, displayTarget);
+    }
+
+    private static boolean matchesComponentDisplayTarget(JSONObject component, String displayTarget,
+                                                        boolean resolutionTargetMatchesExplicitly) {
+        String explicitTarget = readDisplayTarget(component);
+        if (!explicitTarget.isEmpty()) {
+            return targetEquals(explicitTarget, displayTarget);
+        }
+
+        return resolutionTargetMatchesExplicitly || isMainDisplayTarget(displayTarget);
+    }
+
+    private static String readDisplayTarget(JSONObject object) {
+        String target = object.optString("displayTarget", "");
+        if (target.trim().isEmpty()) {
+            target = object.optString("display", "");
+        }
+
+        JSONObject settings = object.optJSONObject("settings");
+        if (target.trim().isEmpty() && settings != null) {
+            target = settings.optString("displayTarget", settings.optString("display", ""));
+        }
+
+        return normalizeDisplayTarget(target);
+    }
+
+    private static String normalizeDisplayTarget(String target) {
+        String value = normalize(target);
+        if ("sub".equals(value) || "secondary".equals(value) || "cover".equals(value) ||
+                "aux".equals(value) || "auxiliary".equals(value)) {
+            return VirtualController.DISPLAY_TARGET_SUB;
+        }
+        if ("main".equals(value) || "primary".equals(value) || "stream".equals(value) ||
+                "streaming".equals(value)) {
+            return VirtualController.DISPLAY_TARGET_MAIN;
+        }
+        return "";
+    }
+
+    private static boolean targetEquals(String candidate, String displayTarget) {
+        return normalizeDisplayTarget(candidate).equals(normalizeDisplayTarget(displayTarget));
+    }
+
+    private static boolean isMainDisplayTarget(String displayTarget) {
+        return VirtualController.DISPLAY_TARGET_MAIN.equals(normalizeDisplayTarget(displayTarget));
+    }
+
+    private static class CandidateDisplayMatch {
+        final boolean matches;
+        final boolean resolutionTargetMatchesExplicitly;
+
+        CandidateDisplayMatch(boolean matches, boolean resolutionTargetMatchesExplicitly) {
+            this.matches = matches;
+            this.resolutionTargetMatchesExplicitly = resolutionTargetMatchesExplicitly;
+        }
     }
 
     private static LayoutTransform getLayoutTransform(JSONObject resolution,
@@ -396,12 +534,14 @@ public class WebGamepadLayoutLoader {
             return new LayoutTarget(
                     getClientTargetWidth(controller, context),
                     getClientTargetHeight(controller, context),
-                    false);
+                    false,
+                    controller.getDisplayTarget());
         }
         return new LayoutTarget(
                 getTargetWidth(controller, context),
                 getTargetHeight(controller, context),
-                true);
+                true,
+                controller.getDisplayTarget());
     }
 
     private static int getTargetWidth(VirtualController controller, Context context) {
@@ -488,11 +628,18 @@ public class WebGamepadLayoutLoader {
         final int width;
         final int height;
         final boolean alignToReferenceView;
+        final String displayTarget;
 
         LayoutTarget(int width, int height, boolean alignToReferenceView) {
+            this(width, height, alignToReferenceView, VirtualController.DISPLAY_TARGET_MAIN);
+        }
+
+        LayoutTarget(int width, int height, boolean alignToReferenceView, String displayTarget) {
             this.width = Math.max(1, width);
             this.height = Math.max(1, height);
             this.alignToReferenceView = alignToReferenceView;
+            this.displayTarget = displayTarget == null ?
+                    VirtualController.DISPLAY_TARGET_MAIN : displayTarget;
         }
     }
 

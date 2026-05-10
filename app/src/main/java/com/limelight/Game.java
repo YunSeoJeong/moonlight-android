@@ -45,6 +45,7 @@ import com.limelight.ui.ExternalControllerView;
 import com.limelight.ui.GameGestures;
 import com.limelight.ui.StreamContainer;
 import com.limelight.utils.Dialog;
+import com.limelight.utils.DualDisplayVirtualGamepadManager;
 import com.limelight.utils.ExternalDisplayControlActivity;
 import com.limelight.utils.LastSessionManager;
 import com.limelight.utils.MouseModeOption;
@@ -927,6 +928,10 @@ public class Game extends AppCompatActivity implements SurfaceHolder.Callback,
         }
 
         //特殊按键屏幕布局
+        if (prefConfig.dualScreenVirtualGamepad) {
+            DualDisplayVirtualGamepadManager.start(this);
+        }
+
         if(prefConfig.enableKeyboard){
             initKeyboardController();
         }
@@ -1177,6 +1182,10 @@ public class Game extends AppCompatActivity implements SurfaceHolder.Callback,
         virtualController = new VirtualController(controllerHandler, (FrameLayout)rootView, streamContainer, this);
         virtualController.refreshLayout();
         virtualController.show();
+    }
+
+    public ControllerHandler getControllerHandler() {
+        return controllerHandler;
     }
 
     private void initkeyBoardLayoutController(){
@@ -1821,6 +1830,8 @@ public class Game extends AppCompatActivity implements SurfaceHolder.Callback,
 
         instance = null;
         timerHandler.removeCallbacksAndMessages(null);
+
+        DualDisplayVirtualGamepadManager.close();
 
         if (prefConfig.enableFullExDisplay) handleDisplayRemoved();
 

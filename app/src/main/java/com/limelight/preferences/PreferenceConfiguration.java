@@ -73,6 +73,7 @@ public class PreferenceConfiguration {
     private static final String USB_DRIVER_PREF_SRING = "checkbox_usb_driver";
     private static final String VIDEO_FORMAT_PREF_STRING = "video_format";
     private static final String ONSCREEN_CONTROLLER_PREF_STRING = "checkbox_show_onscreen_controls";
+    private static final String DUAL_SCREEN_VIRTUAL_GAMEPAD_PREF_STRING = "checkbox_dual_screen_virtual_gamepad";
     private static final String CHECKBOX_HIDE_OSC_WHEN_HAS_GAMEPAD = "checkbox_hide_osc_when_has_gamepad";
     private static final String VIRTUAL_GAMEPAD_LAYOUT_RESOLUTION_SOURCE_PREF_STRING = "list_virtual_gamepad_layout_resolution_source";
     private static final String ONLY_L3_R3_PREF_STRING = "checkbox_only_show_L3R3";
@@ -176,6 +177,7 @@ public class PreferenceConfiguration {
     private static final String DEFAULT_VIDEO_FORMAT = "auto";
 
     private static final boolean DEFAULT_ONSCREEN_CONTROLLER = false;
+    private static final boolean DEFAULT_DUAL_SCREEN_VIRTUAL_GAMEPAD = false;
     private static final boolean DEFAULT_HIDE_OSC_WHEN_HAS_GAMEPAD = true;
     public static final String VIRTUAL_GAMEPAD_LAYOUT_RESOLUTION_SOURCE_HOST = "host";
     public static final String VIRTUAL_GAMEPAD_LAYOUT_RESOLUTION_SOURCE_CLIENT = "client";
@@ -279,6 +281,7 @@ public class PreferenceConfiguration {
     public int renderMode;
     public boolean smallIconMode, multiController, usbDriver, flipFaceButtons;
     public boolean onscreenController;
+    public boolean dualScreenVirtualGamepad;
     public boolean hideOSCWhenHasGamepad;
     public String virtualGamepadLayoutResolutionSource;
     public boolean enableBatteryReport;
@@ -1013,6 +1016,8 @@ private static int getFramePacingValue(Context context) {
                 break;
         }
         config.onscreenController = prefs.getBoolean(ONSCREEN_CONTROLLER_PREF_STRING, DEFAULT_ONSCREEN_CONTROLLER);
+        config.dualScreenVirtualGamepad = prefs.getBoolean(DUAL_SCREEN_VIRTUAL_GAMEPAD_PREF_STRING,
+                DEFAULT_DUAL_SCREEN_VIRTUAL_GAMEPAD);
         config.hideOSCWhenHasGamepad = prefs.getBoolean(CHECKBOX_HIDE_OSC_WHEN_HAS_GAMEPAD, DEFAULT_HIDE_OSC_WHEN_HAS_GAMEPAD);
         config.virtualGamepadLayoutResolutionSource =
                 prefs.getString(VIRTUAL_GAMEPAD_LAYOUT_RESOLUTION_SOURCE_PREF_STRING,

@@ -26,6 +26,9 @@ import java.util.ArrayList;
 import java.util.List;
 
 public class VirtualController {
+    public static final String DISPLAY_TARGET_MAIN = "main";
+    public static final String DISPLAY_TARGET_SUB = "sub";
+
     public static class ControllerInputContext {
 //        public short inputMap = 0x0000;
         public int inputMap = 0;
@@ -50,6 +53,8 @@ public class VirtualController {
     private final Context context;
     private final Handler handler;
     private final View referenceView;
+    private final String displayTarget;
+    private final boolean defaultLayoutFallbackEnabled;
 
     private final Runnable delayedRetransmitRunnable = new Runnable() {
         @Override
@@ -79,11 +84,19 @@ public class VirtualController {
 
     public VirtualController(final ControllerHandler controllerHandler, FrameLayout layout,
                              View referenceView, final Context context) {
+        this(controllerHandler, layout, referenceView, context, DISPLAY_TARGET_MAIN, true);
+    }
+
+    public VirtualController(final ControllerHandler controllerHandler, FrameLayout layout,
+                             View referenceView, final Context context, String displayTarget,
+                             boolean defaultLayoutFallbackEnabled) {
         this.controllerHandler = controllerHandler;
         this.frame_layout = layout;
         this.referenceView = referenceView;
         this.context = context;
         this.handler = new Handler(Looper.getMainLooper());
+        this.displayTarget = displayTarget == null ? DISPLAY_TARGET_MAIN : displayTarget;
+        this.defaultLayoutFallbackEnabled = defaultLayoutFallbackEnabled;
 
         this.vibrator = (Vibrator) context.getSystemService(Context.VIBRATOR_SERVICE);
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
@@ -261,6 +274,10 @@ public class VirtualController {
         return elements;
     }
 
+    public String getDisplayTarget() {
+        return displayTarget;
+    }
+
     private static final void _DBG(String text) {
         if (_PRINT_DEBUG_INFORMATION) {
             LimeLog.info("VirtualController: " + text);
@@ -292,7 +309,7 @@ public class VirtualController {
         params.topMargin = 15 + getLayoutOffsetY();
         frame_layout.addView(buttonConfigure, params);
 
-        if (!WebGamepadLayoutLoader.loadIfAvailable(this, context)) {
+        if (!WebGamepadLayoutLoader.loadIfAvailable(this, context) && defaultLayoutFallbackEnabled) {
             // Start with the default layout
             VirtualControllerConfigurationLoader.createDefaultLayout(this, context);
 
@@ -302,6 +319,10 @@ public class VirtualController {
 
         if (!controlsEnabled) {
             hideControlElements();
+        }
+
+        if (elements.isEmpty() && !defaultLayoutFallbackEnabled) {
+            frame_layout.removeView(buttonConfigure);
         }
     }
 
