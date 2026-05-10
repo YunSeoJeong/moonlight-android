@@ -286,6 +286,10 @@
     <string name="pref_gamepad_layout_cleared">Imported gamepad layout cleared.</string>
     <string name="title_manage_virtual_gamepad_layouts">Manage virtual gamepads</string>
     <string name="summary_manage_virtual_gamepad_layouts">Import, activate, or remove virtual gamepad layouts.</string>
+    <string name="title_virtual_gamepad_layout_resolution_source">Virtual gamepad layout matching</string>
+    <string name="summary_virtual_gamepad_layout_resolution_source">Choose whether virtual gamepad layouts are matched to the stream area or the client screen.</string>
+    <string name="virtual_gamepad_layout_resolution_source_host">Host stream area</string>
+    <string name="virtual_gamepad_layout_resolution_source_client">Client screen</string>
     <string name="title_virtual_gamepad_layout_list_activity">Virtual Gamepads</string>
     <string name="virtual_gamepad_layout_active">Active</string>
     <string name="virtual_gamepad_layout_inactive">Inactive</string>

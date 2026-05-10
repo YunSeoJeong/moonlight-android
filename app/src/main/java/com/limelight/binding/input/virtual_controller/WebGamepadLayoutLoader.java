@@ -146,7 +146,9 @@ public class WebGamepadLayoutLoader {
             }
 
             JSONObject root = new JSONObject(json);
-            JSONObject resolution = chooseResolution(root.optJSONArray("resolutions"), controller, context);
+            PreferenceConfiguration config = PreferenceConfiguration.readPreferences(context);
+            LayoutTarget layoutTarget = getLayoutTarget(controller, context, config);
+            JSONObject resolution = chooseResolution(root.optJSONArray("resolutions"), layoutTarget);
             if (resolution == null) {
                 return false;
             }
@@ -158,7 +160,7 @@ public class WebGamepadLayoutLoader {
                 return false;
             }
 
-            LayoutTransform transform = getLayoutTransform(resolution, controller, context);
+            LayoutTransform transform = getLayoutTransform(resolution, context, layoutTarget);
             int added = 0;
 
             List<JSONObject> mouseRegionList = new ArrayList<>();
@@ -192,14 +194,14 @@ public class WebGamepadLayoutLoader {
             Collections.sort(componentList, zComparator);
 
             for (JSONObject region : mouseRegionList) {
-                addMouseRegion(controller, context, region, transform);
+                addMouseRegion(controller, context, region, transform, layoutTarget);
                 added++;
             }
 
             for (JSONObject component : componentList) {
                 VirtualControllerElement element = createElement(controller, context, component);
                 if (element != null) {
-                    addElement(controller, element, component, transform);
+                    addElement(controller, element, component, transform, layoutTarget);
                     added++;
                 }
             }
@@ -208,7 +210,7 @@ public class WebGamepadLayoutLoader {
                 return false;
             }
 
-            controller.setOpacity(PreferenceConfiguration.readPreferences(context).oscOpacity);
+            controller.setOpacity(config.oscOpacity);
             return true;
         } catch (Exception e) {
             LimeLog.warning("Unable to load web gamepad layout: " + e.getMessage());
@@ -336,13 +338,13 @@ public class WebGamepadLayoutLoader {
         }
     }
 
-    private static JSONObject chooseResolution(JSONArray resolutions, VirtualController controller, Context context) {
+    private static JSONObject chooseResolution(JSONArray resolutions, LayoutTarget layoutTarget) {
         if (resolutions == null || resolutions.length() == 0) {
             return null;
         }
 
-        int targetWidth = getTargetWidth(controller, context);
-        int targetHeight = getTargetHeight(controller, context);
+        int targetWidth = layoutTarget.width;
+        int targetHeight = layoutTarget.height;
         JSONObject best = null;
         long bestScore = Long.MAX_VALUE;
 
@@ -373,10 +375,10 @@ public class WebGamepadLayoutLoader {
     }
 
     private static LayoutTransform getLayoutTransform(JSONObject resolution,
-                                                      VirtualController controller,
-                                                      Context context) {
-        int targetWidth = getTargetWidth(controller, context);
-        int targetHeight = getTargetHeight(controller, context);
+                                                      Context context,
+                                                      LayoutTarget layoutTarget) {
+        int targetWidth = layoutTarget.width;
+        int targetHeight = layoutTarget.height;
         DisplayMetrics screen = context.getResources().getDisplayMetrics();
         int sourceWidth = Math.max(1, resolution.optInt("width", screen.widthPixels));
         int sourceHeight = Math.max(1, resolution.optInt("height", screen.heightPixels));
@@ -385,6 +387,21 @@ public class WebGamepadLayoutLoader {
         double offsetX = (targetWidth - sourceWidth * scale) / 2.0;
         double offsetY = (targetHeight - sourceHeight * scale) / 2.0;
         return new LayoutTransform(scale, offsetX, offsetY);
+    }
+
+    private static LayoutTarget getLayoutTarget(VirtualController controller, Context context,
+                                                PreferenceConfiguration config) {
+        if (PreferenceConfiguration.VIRTUAL_GAMEPAD_LAYOUT_RESOLUTION_SOURCE_CLIENT
+                .equals(config.virtualGamepadLayoutResolutionSource)) {
+            return new LayoutTarget(
+                    getClientTargetWidth(controller, context),
+                    getClientTargetHeight(controller, context),
+                    false);
+        }
+        return new LayoutTarget(
+                getTargetWidth(controller, context),
+                getTargetHeight(controller, context),
+                true);
     }
 
     private static int getTargetWidth(VirtualController controller, Context context) {
@@ -403,20 +420,39 @@ public class WebGamepadLayoutLoader {
         return context.getResources().getDisplayMetrics().heightPixels;
     }
 
+    private static int getClientTargetWidth(VirtualController controller, Context context) {
+        int width = controller.getOverlayLayoutWidth();
+        if (width > 0) {
+            return width;
+        }
+        return context.getResources().getDisplayMetrics().widthPixels;
+    }
+
+    private static int getClientTargetHeight(VirtualController controller, Context context) {
+        int height = controller.getOverlayLayoutHeight();
+        if (height > 0) {
+            return height;
+        }
+        return context.getResources().getDisplayMetrics().heightPixels;
+    }
+
     private static void addElement(VirtualController controller, VirtualControllerElement element,
-                                   JSONObject component, LayoutTransform transform) {
+                                   JSONObject component, LayoutTransform transform,
+                                   LayoutTarget layoutTarget) {
         JSONObject rect = getRect(component);
         controller.addElement(element,
                 (int) Math.round(transform.offsetX + rect.optDouble("x") * transform.scale),
                 (int) Math.round(transform.offsetY + rect.optDouble("y") * transform.scale),
                 Math.max(20, (int) Math.round(rect.optDouble("w", 80) * transform.scale)),
-                Math.max(20, (int) Math.round(rect.optDouble("h", 80) * transform.scale)));
+                Math.max(20, (int) Math.round(rect.optDouble("h", 80) * transform.scale)),
+                layoutTarget.alignToReferenceView);
     }
 
     private static void addMouseRegion(VirtualController controller, Context context,
-                                       JSONObject component, LayoutTransform transform) {
+                                       JSONObject component, LayoutTransform transform,
+                                       LayoutTarget layoutTarget) {
         addElement(controller, new MouseRegionElement(controller, context),
-                component, transform);
+                component, transform, layoutTarget);
     }
 
     private static JSONObject getRect(JSONObject component) {
@@ -445,6 +481,18 @@ public class WebGamepadLayoutLoader {
             this.scale = scale;
             this.offsetX = offsetX;
             this.offsetY = offsetY;
+        }
+    }
+
+    private static class LayoutTarget {
+        final int width;
+        final int height;
+        final boolean alignToReferenceView;
+
+        LayoutTarget(int width, int height, boolean alignToReferenceView) {
+            this.width = Math.max(1, width);
+            this.height = Math.max(1, height);
+            this.alignToReferenceView = alignToReferenceView;
         }
     }
 

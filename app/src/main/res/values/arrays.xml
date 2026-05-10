@@ -54,6 +54,15 @@
         <item>bottom</item>
     </string-array>
 
+    <string-array name="virtual_gamepad_layout_resolution_source_names">
+        <item>@string/virtual_gamepad_layout_resolution_source_host</item>
+        <item>@string/virtual_gamepad_layout_resolution_source_client</item>
+    </string-array>
+    <string-array name="virtual_gamepad_layout_resolution_source_values" translatable="false">
+        <item>host</item>
+        <item>client</item>
+    </string-array>
+
     <string-array name="audio_config_names">
         <item>@string/audioconf_stereo</item>
         <item>@string/audioconf_51surround</item>

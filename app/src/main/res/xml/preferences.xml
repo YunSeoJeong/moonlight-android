@@ -759,6 +759,15 @@
             app:iconSpaceReserved="false"
             seekbar:min="0"
             seekbar:step="1" />
+        <ListPreference
+            android:defaultValue="host"
+            android:dependency="checkbox_show_onscreen_controls"
+            android:entries="@array/virtual_gamepad_layout_resolution_source_names"
+            android:entryValues="@array/virtual_gamepad_layout_resolution_source_values"
+            android:key="list_virtual_gamepad_layout_resolution_source"
+            android:summary="@string/summary_virtual_gamepad_layout_resolution_source"
+            android:title="@string/title_virtual_gamepad_layout_resolution_source"
+            app:iconSpaceReserved="false" />
         <Preference
             android:dependency="checkbox_show_onscreen_controls"
             android:key="manage_virtual_gamepad_layouts"

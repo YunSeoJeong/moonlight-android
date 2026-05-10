@@ -203,9 +203,16 @@ public class VirtualController {
 
 
     public void addElement(VirtualControllerElement element, int x, int y, int width, int height) {
+        addElement(element, x, y, width, height, true);
+    }
+
+    void addElement(VirtualControllerElement element, int x, int y, int width, int height,
+                    boolean alignToReferenceView) {
         elements.add(element);
         FrameLayout.LayoutParams layoutParams = new FrameLayout.LayoutParams(width, height);
-        layoutParams.setMargins(x + getLayoutOffsetX(), y + getLayoutOffsetY(), 0, 0);
+        int offsetX = alignToReferenceView ? getLayoutOffsetX() : 0;
+        int offsetY = alignToReferenceView ? getLayoutOffsetY() : 0;
+        layoutParams.setMargins(x + offsetX, y + offsetY, 0, 0);
 
         frame_layout.addView(element, layoutParams);
     }
@@ -218,6 +225,14 @@ public class VirtualController {
     int getLayoutHeight() {
         View layoutView = referenceView != null ? referenceView : frame_layout;
         return layoutView != null ? Math.max(layoutView.getHeight(), layoutView.getMeasuredHeight()) : 0;
+    }
+
+    int getOverlayLayoutWidth() {
+        return frame_layout != null ? Math.max(frame_layout.getWidth(), frame_layout.getMeasuredWidth()) : 0;
+    }
+
+    int getOverlayLayoutHeight() {
+        return frame_layout != null ? Math.max(frame_layout.getHeight(), frame_layout.getMeasuredHeight()) : 0;
     }
 
     private int getLayoutOffsetX() {
