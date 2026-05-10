@@ -23,6 +23,7 @@ import com.limelight.binding.input.evdev.EvdevListener;
 import com.limelight.binding.input.touch.TouchContext;
 import com.limelight.binding.input.touch.TrackpadContext;
 import com.limelight.binding.input.virtual_controller.VirtualController;
+import com.limelight.binding.input.virtual_controller.VirtualControllerStateAggregator;
 import com.limelight.binding.input.virtual_controller.keyboard.KeyBoardController;
 import com.limelight.binding.input.virtual_controller.keyboard.KeyBoardLayoutController;
 import com.limelight.binding.video.CrashListener;
@@ -180,6 +181,7 @@ public class Game extends AppCompatActivity implements SurfaceHolder.Callback,
     private ControllerHandler controllerHandler;
     private KeyboardTranslator keyboardTranslator;
     private VirtualController virtualController;
+    private VirtualControllerStateAggregator virtualControllerStateAggregator;
 
     private KeyBoardController keyBoardController;
 
@@ -1179,13 +1181,34 @@ public class Game extends AppCompatActivity implements SurfaceHolder.Callback,
     }
 
     private void initVirtualController(){
-        virtualController = new VirtualController(controllerHandler, (FrameLayout)rootView, streamContainer, this);
+        if (prefConfig.dualScreenVirtualGamepad) {
+            virtualController = new VirtualController(controllerHandler, (FrameLayout)rootView,
+                    streamContainer, this, VirtualController.DISPLAY_TARGET_MAIN, true,
+                    getVirtualControllerInputStateSink());
+        } else {
+            virtualController = new VirtualController(controllerHandler, (FrameLayout)rootView,
+                    streamContainer, this);
+        }
         virtualController.refreshLayout();
         virtualController.show();
     }
 
     public ControllerHandler getControllerHandler() {
         return controllerHandler;
+    }
+
+    public VirtualController.InputStateSink getVirtualControllerInputStateSink() {
+        if (virtualControllerStateAggregator == null) {
+            virtualControllerStateAggregator =
+                    new VirtualControllerStateAggregator(controllerHandler);
+        }
+        return virtualControllerStateAggregator;
+    }
+
+    public void resetVirtualControllerInputState(String displayTarget) {
+        if (virtualControllerStateAggregator != null) {
+            virtualControllerStateAggregator.resetDisplay(displayTarget);
+        }
     }
 
     private void initkeyBoardLayoutController(){
@@ -1832,6 +1855,10 @@ public class Game extends AppCompatActivity implements SurfaceHolder.Callback,
         timerHandler.removeCallbacksAndMessages(null);
 
         DualDisplayVirtualGamepadManager.close();
+        if (virtualControllerStateAggregator != null) {
+            virtualControllerStateAggregator.reset();
+            virtualControllerStateAggregator = null;
+        }
 
         if (prefConfig.enableFullExDisplay) handleDisplayRemoved();
 

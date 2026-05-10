@@ -29,6 +29,10 @@ public class VirtualController {
     public static final String DISPLAY_TARGET_MAIN = "main";
     public static final String DISPLAY_TARGET_SUB = "sub";
 
+    public interface InputStateSink {
+        void reportState(String displayTarget, ControllerInputContext inputContext);
+    }
+
     public static class ControllerInputContext {
 //        public short inputMap = 0x0000;
         public int inputMap = 0;
@@ -55,6 +59,7 @@ public class VirtualController {
     private final View referenceView;
     private final String displayTarget;
     private final boolean defaultLayoutFallbackEnabled;
+    private final InputStateSink inputStateSink;
 
     private final Runnable delayedRetransmitRunnable = new Runnable() {
         @Override
@@ -90,6 +95,13 @@ public class VirtualController {
     public VirtualController(final ControllerHandler controllerHandler, FrameLayout layout,
                              View referenceView, final Context context, String displayTarget,
                              boolean defaultLayoutFallbackEnabled) {
+        this(controllerHandler, layout, referenceView, context, displayTarget,
+                defaultLayoutFallbackEnabled, null);
+    }
+
+    public VirtualController(final ControllerHandler controllerHandler, FrameLayout layout,
+                             View referenceView, final Context context, String displayTarget,
+                             boolean defaultLayoutFallbackEnabled, InputStateSink inputStateSink) {
         this.controllerHandler = controllerHandler;
         this.frame_layout = layout;
         this.referenceView = referenceView;
@@ -97,6 +109,7 @@ public class VirtualController {
         this.handler = new Handler(Looper.getMainLooper());
         this.displayTarget = displayTarget == null ? DISPLAY_TARGET_MAIN : displayTarget;
         this.defaultLayoutFallbackEnabled = defaultLayoutFallbackEnabled;
+        this.inputStateSink = inputStateSink;
 
         this.vibrator = (Vibrator) context.getSystemService(Context.VIBRATOR_SERVICE);
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
@@ -341,7 +354,9 @@ public class VirtualController {
         _DBG("LEFT STICK X: " + inputContext.leftStickX + " Y: " + inputContext.leftStickY);
         _DBG("RIGHT STICK X: " + inputContext.rightStickX + " Y: " + inputContext.rightStickY);
 
-        if (controllerHandler != null) {
+        if (inputStateSink != null) {
+            inputStateSink.reportState(displayTarget, inputContext);
+        } else if (controllerHandler != null) {
             controllerHandler.reportOscState(
                     inputContext.inputMap,
                     inputContext.leftStickX,

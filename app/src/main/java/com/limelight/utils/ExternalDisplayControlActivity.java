@@ -216,6 +216,9 @@ public class ExternalDisplayControlActivity extends AppCompatActivity implements
     @Override
     protected void onDestroy() {
         super.onDestroy();
+        if (Game.instance != null) {
+            Game.instance.resetVirtualControllerInputState(VirtualController.DISPLAY_TARGET_SUB);
+        }
         instance = null;
     }
 
@@ -470,7 +473,8 @@ public class ExternalDisplayControlActivity extends AppCompatActivity implements
         }
 
         virtualController = new VirtualController(Game.instance.getControllerHandler(),
-                rootLayout, null, this, VirtualController.DISPLAY_TARGET_SUB, false);
+                rootLayout, null, this, VirtualController.DISPLAY_TARGET_SUB, false,
+                Game.instance.getVirtualControllerInputStateSink());
         virtualController.refreshLayout();
         virtualController.show();
     }
