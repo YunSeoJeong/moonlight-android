@@ -202,7 +202,7 @@ public class WebGamepadLayoutLoader {
             }
 
             for (JSONObject component : componentList) {
-                VirtualControllerElement element = createElement(controller, context, component);
+                VirtualControllerElement element = createElement(controller, context, component, config);
                 if (element != null) {
                     addElement(controller, element, component, transform, layoutTarget);
                     added++;
@@ -661,7 +661,8 @@ public class WebGamepadLayoutLoader {
 
     private static VirtualControllerElement createElement(final VirtualController controller,
                                                           final Context context,
-                                                          JSONObject component) {
+                                                          JSONObject component,
+                                                          PreferenceConfiguration config) {
         JSONObject runtime = component.optJSONObject("runtime");
         if (runtime == null) {
             runtime = new JSONObject();
@@ -685,8 +686,17 @@ public class WebGamepadLayoutLoader {
             return element;
         }
 
+        if (isAnalogStickTouchpad(type, originalType, runtime)) {
+            element = new WebTouchpadAnalogStick(controller, context, elementId, runtime, label,
+                    shape, config.virtualGamepadAntiDeadzone);
+            applyStyle(element, style);
+            applyMouseForwarding(element, component, style);
+            return element;
+        }
+
         if ("stick".equals(type) || "stick".equals(originalType)) {
-            element = new WebStick(controller, context, elementId, inputType, runtime, label, shape);
+            element = new WebStick(controller, context, elementId, inputType, runtime, label,
+                    shape, config.virtualGamepadAntiDeadzone);
             applyStyle(element, style);
             applyMouseForwarding(element, component, style);
             return element;
@@ -710,6 +720,12 @@ public class WebGamepadLayoutLoader {
         applyStyle(element, style);
         applyMouseForwarding(element, component, style);
         return element;
+    }
+
+    private static boolean isAnalogStickTouchpad(String type, String originalType, JSONObject runtime) {
+        return ("touchpad".equals(normalize(type)) || "touchpad".equals(normalize(originalType))) &&
+                ("analogstick".equals(normalize(runtime.optString("mode"))) ||
+                        "analogstick".equals(normalize(runtime.optString("role"))));
     }
 
     private static void applyStyle(WebElement element, JSONObject style) {
@@ -973,6 +989,22 @@ public class WebGamepadLayoutLoader {
             return Short.MIN_VALUE;
         }
         return (short) value;
+    }
+
+    private static float normalizedAnalogDelta(float delta, double maxDelta, double sensitivity) {
+        double safeMaxDelta = Math.max(1.0, maxDelta);
+        double value = delta * sensitivity / safeMaxDelta;
+        return (float) Math.max(-1.0, Math.min(1.0, value));
+    }
+
+    private static float applyAntiDeadzone(float value, float magnitude, float antiDeadzone) {
+        if (antiDeadzone <= 0f || magnitude <= 0f) {
+            return value;
+        }
+
+        float clampedAntiDeadzone = Math.max(0f, Math.min(1f, antiDeadzone));
+        float outputMagnitude = clampedAntiDeadzone + magnitude * (1f - clampedAntiDeadzone);
+        return value * Math.min(1f, outputMagnitude) / magnitude;
     }
 
     private static List<String> splitBindingValues(String value) {
@@ -1620,23 +1652,176 @@ public class WebGamepadLayoutLoader {
         }
     }
 
+    private static class WebTouchpadAnalogStick extends WebElement {
+        private final JSONObject runtime;
+        private final double sensitivity;
+        private final boolean invertY;
+        private final double maxDelta;
+        private final float deadzone;
+        private final float antiDeadzone;
+        private final int pressFlag;
+        private int activePointerId = -1;
+        private float lastX;
+        private float lastY;
+
+        WebTouchpadAnalogStick(VirtualController controller, Context context, int elementId,
+                               JSONObject runtime, String label, String shape, float antiDeadzone) {
+            super(controller, context, elementId, label, shape);
+            this.runtime = runtime;
+            this.sensitivity = runtime.optDouble("sensitivity", 1.0);
+            this.invertY = runtime.optBoolean("invertY", false);
+            this.maxDelta = runtime.optDouble("maxDelta", 24.0);
+            this.deadzone = (float) runtime.optDouble("deadzone", 0.15);
+            this.antiDeadzone = antiDeadzone;
+
+            JSONObject binding = runtime.optJSONObject("binding");
+            this.pressFlag = binding != null ? parseControllerFlag(binding.optString("press", ""), "") : 0;
+        }
+
+        @Override
+        protected void onElementDraw(Canvas canvas) {
+            drawBody(canvas, isPressed());
+            paint.setStyle(Paint.Style.STROKE);
+            paint.setColor(isPressed() ? pressedColor : getDefaultColor());
+            float inset = Math.min(getWidth(), getHeight()) * 0.18f;
+            canvas.drawLine(inset, getHeight() / 2f, getWidth() - inset, getHeight() / 2f, paint);
+            canvas.drawLine(getWidth() / 2f, inset, getWidth() / 2f, getHeight() - inset, paint);
+            drawLabel(canvas);
+        }
+
+        @Override
+        public boolean onElementTouchEvent(MotionEvent event) {
+            switch (event.getActionMasked()) {
+                case MotionEvent.ACTION_DOWN:
+                    startDrag(event);
+                    return true;
+                case MotionEvent.ACTION_MOVE:
+                    updateDrag(event);
+                    return true;
+                case MotionEvent.ACTION_CANCEL:
+                case MotionEvent.ACTION_UP:
+                    endDrag(event);
+                    return true;
+                default:
+                    return true;
+            }
+        }
+
+        private void startDrag(MotionEvent event) {
+            forwardMousePosition(event);
+            activePointerId = event.getPointerId(0);
+            lastX = event.getX(0);
+            lastY = event.getY(0);
+            setPressed(true);
+            applyPress(true);
+            invalidate();
+        }
+
+        private void updateDrag(MotionEvent event) {
+            if (activePointerId < 0) {
+                return;
+            }
+
+            int pointerIndex = event.findPointerIndex(activePointerId);
+            if (pointerIndex < 0) {
+                return;
+            }
+
+            forwardMousePosition(event);
+            float x = event.getX(pointerIndex);
+            float y = event.getY(pointerIndex);
+            float stickX = normalizedAnalogDelta(x - lastX, maxDelta, sensitivity);
+            float stickY = normalizedAnalogDelta(y - lastY, maxDelta, sensitivity);
+            if (invertY) {
+                stickY = -stickY;
+            }
+
+            lastX = x;
+            lastY = y;
+            applyStick(stickX, stickY);
+            invalidate();
+        }
+
+        private void endDrag(MotionEvent event) {
+            forwardMousePosition(event);
+            activePointerId = -1;
+            setPressed(false);
+            applyStick(0, 0);
+            applyPress(false);
+            invalidate();
+        }
+
+        private void applyStick(float x, float y) {
+            float magnitude = magnitude(x, y);
+            if (magnitude < deadzone) {
+                x = 0;
+                y = 0;
+            } else if (magnitude > 1f) {
+                x /= magnitude;
+                y /= magnitude;
+                magnitude = 1f;
+            }
+
+            if (x != 0 || y != 0) {
+                magnitude = magnitude(x, y);
+                x = applyAntiDeadzone(x, magnitude, antiDeadzone);
+                y = applyAntiDeadzone(y, magnitude, antiDeadzone);
+            }
+
+            JSONObject binding = runtime.optJSONObject("binding");
+            String axisX = binding != null ? binding.optString("axisX") : "";
+            boolean right = normalize(axisX).contains("right");
+            VirtualController.ControllerInputContext inputContext =
+                    virtualController.getControllerInputContext();
+            if (right) {
+                inputContext.rightStickX = (short) (x * 0x7FFE);
+                inputContext.rightStickY = (short) (-y * 0x7FFE);
+            } else {
+                inputContext.leftStickX = (short) (x * 0x7FFE);
+                inputContext.leftStickY = (short) (-y * 0x7FFE);
+            }
+            virtualController.sendControllerInputContext(10, 0x11);
+        }
+
+        private void applyPress(boolean down) {
+            if (pressFlag == 0) {
+                return;
+            }
+
+            VirtualController.ControllerInputContext inputContext =
+                    virtualController.getControllerInputContext();
+            if (down) {
+                inputContext.inputMap |= pressFlag;
+            } else {
+                inputContext.inputMap &= ~pressFlag;
+            }
+            virtualController.sendControllerInputContext();
+        }
+
+        private float magnitude(float x, float y) {
+            return (float) Math.sqrt(x * x + y * y);
+        }
+    }
+
     private static class WebStick extends WebElement {
         private static final float DIAGONAL_THRESHOLD = 0.41421356f; // tan(22.5 degrees)
 
         private final String inputType;
         private final JSONObject runtime;
         private final float deadzone;
+        private final float antiDeadzone;
         private int lastHorizontalKey = KeyEvent.KEYCODE_UNKNOWN;
         private int lastVerticalKey = KeyEvent.KEYCODE_UNKNOWN;
         private float normalizedStickX;
         private float normalizedStickY;
 
         WebStick(VirtualController controller, Context context, int elementId, String inputType,
-                 JSONObject runtime, String label, String shape) {
+                 JSONObject runtime, String label, String shape, float antiDeadzone) {
             super(controller, context, elementId, label, shape);
             this.inputType = inputType;
             this.runtime = runtime;
             this.deadzone = (float) runtime.optDouble("deadzone", 0.15);
+            this.antiDeadzone = antiDeadzone;
         }
 
         @Override
@@ -1680,6 +1865,12 @@ public class WebGamepadLayoutLoader {
             if (magnitude < deadzone) {
                 x = 0;
                 y = 0;
+            }
+
+            if ("controller".equals(inputType) && (x != 0 || y != 0)) {
+                magnitude = magnitude(x, y);
+                x = applyAntiDeadzone(x, magnitude, antiDeadzone);
+                y = applyAntiDeadzone(y, magnitude, antiDeadzone);
             }
 
             if ("keyboard".equals(inputType)) {

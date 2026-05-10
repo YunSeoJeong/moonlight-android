@@ -33,6 +33,7 @@ public class SeekBarPreference extends Preference
     private final int stepSize;
     private final int keyStepSize;
     private final int divisor;
+    private final int decimalPlaces;
     private int currentValue;
 
     private final int seekbarMax;
@@ -65,6 +66,7 @@ public class SeekBarPreference extends Preference
         minValue = attrs.getAttributeIntValue(SEEKBAR_SCHEMA_URL, "min", 1);
         stepSize = attrs.getAttributeIntValue(SEEKBAR_SCHEMA_URL, "step", 1);
         divisor = attrs.getAttributeIntValue(SEEKBAR_SCHEMA_URL, "divisor", 1);
+        decimalPlaces = attrs.getAttributeIntValue(SEEKBAR_SCHEMA_URL, "decimals", 1);
         keyStepSize = attrs.getAttributeIntValue(SEEKBAR_SCHEMA_URL, "keyStep", 0);
         seekbarMax = maxValue - minValue;
     }
@@ -115,7 +117,7 @@ public class SeekBarPreference extends Preference
                 String t;
                 if (divisor != 1) {
                     float floatValue = roundedValue / (float)divisor;
-                    t = String.format((Locale)null, "%.1f", floatValue);
+                    t = String.format((Locale)null, "%." + decimalPlaces + "f", floatValue);
                 }
                 else {
                     t = String.valueOf(value);
