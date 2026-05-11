@@ -131,10 +131,23 @@ public class ServerHelper {
                 gameIntent.putExtra(Game.EXTRA_DISPLAY_ID, secondaryDisplayId);
                 Intent touchpadIntent = new Intent(parent, ExternalDisplayControlActivity.class);
                 touchpadIntent.putExtra(ExternalDisplayControlActivity.EXTRA_LAUNCH_INTENT, gameIntent);
+                LimeLog.info("ServerHelper.createStartIntent: launching via ExternalDisplayControlActivity" +
+                        " parent=" + parent.getClass().getSimpleName() +
+                        " parentIsTaskRoot=" + parent.isTaskRoot() +
+                        " withVDisplay=" + withVDisplay +
+                        " gameIntentFlags=0x" + Integer.toHexString(gameIntent.getFlags()) +
+                        " secondaryDisplayId=" + secondaryDisplayId);
                 return touchpadIntent;
             }
         }
 
+        LimeLog.info("ServerHelper.createStartIntent: launching Game" +
+                " parent=" + parent.getClass().getSimpleName() +
+                " parentIsTaskRoot=" + parent.isTaskRoot() +
+                " withVDisplay=" + withVDisplay +
+                " intentFlags=0x" + Integer.toHexString(gameIntent.getFlags()) +
+                " appId=" + app.getAppId() +
+                " appName=" + app.getAppName());
         return gameIntent;
     }
 

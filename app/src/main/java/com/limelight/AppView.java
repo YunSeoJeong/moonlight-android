@@ -420,8 +420,9 @@ public class AppView extends AppCompatActivity implements AdapterFragmentCallbac
         LimeLog.info("AppView.checkAndReconnectLastSession: checking for saved session");
         android.content.Intent intent = LastSessionManager.buildReconnectIntent(this);
         if (intent == null) return;
-        LimeLog.info("AppView.checkAndReconnectLastSession: relaunching Game");
-        LastSessionManager.clear(this);
+        LimeLog.info("AppView.checkAndReconnectLastSession: relaunching Game isTaskRoot=" +
+                isTaskRoot() + " intentFlags=0x" + Integer.toHexString(intent.getFlags()));
+        LastSessionManager.clear(this, "AppView.checkAndReconnectLastSession");
         startActivity(intent);
     }
 

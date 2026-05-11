@@ -393,8 +393,9 @@ public class PcView extends AppCompatActivity implements AdapterFragmentCallback
         LimeLog.info("PcView.checkAndReconnectLastSession: checking for saved session");
         android.content.Intent intent = LastSessionManager.buildReconnectIntent(this);
         if (intent == null) return;
-        LimeLog.info("PcView.checkAndReconnectLastSession: relaunching Game");
-        LastSessionManager.clear(this);
+        LimeLog.info("PcView.checkAndReconnectLastSession: relaunching Game isTaskRoot=" +
+                isTaskRoot() + " intentFlags=0x" + Integer.toHexString(intent.getFlags()));
+        LastSessionManager.clear(this, "PcView.checkAndReconnectLastSession");
         startActivity(intent);
     }
 

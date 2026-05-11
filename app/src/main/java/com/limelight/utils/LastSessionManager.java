@@ -119,7 +119,12 @@ public class LastSessionManager {
 
     /** Removes the saved session. Call on explicit disconnect, quit, or back. */
     public static void clear(Context context) {
-        LimeLog.info("LastSessionManager: session cleared");
+        clear(context, "unspecified");
+    }
+
+    /** Removes the saved session with a reason for lifecycle diagnostics. */
+    public static void clear(Context context, String reason) {
+        LimeLog.info("LastSessionManager: session cleared reason=" + reason);
         prefs(context).edit().clear().apply();
     }
 

@@ -59,6 +59,7 @@ import com.limelight.utils.UiHelper;
 
 import android.annotation.SuppressLint;
 import android.annotation.TargetApi;
+import android.app.ActivityManager;
 import android.app.AlertDialog;
 import android.app.PictureInPictureParams;
 import android.app.Service;
@@ -204,6 +205,7 @@ public class Game extends AppCompatActivity implements SurfaceHolder.Callback,
     private boolean surfaceCreated = false;
     private boolean attemptedConnection = false;
     private int suppressPipRefCount = 0;
+    private String pendingExitReason = "none";
     private String pcName;
     private String appName;
     private NvApp app;
@@ -656,6 +658,8 @@ public class Game extends AppCompatActivity implements SurfaceHolder.Callback,
 
         app = new NvApp(appName != null ? appName : "app", appUUID, appId, appSupportsHdr);
 
+        logGameActivityState("onCreate after extras");
+
         try {
             if (derCertData != null) {
                 serverCert = (X509Certificate) CertificateFactory.getInstance("X.509")
@@ -668,7 +672,7 @@ public class Game extends AppCompatActivity implements SurfaceHolder.Callback,
         }
 
         if (appId == StreamConfiguration.INVALID_APP_ID) {
-            finish();
+            finishWithReason("invalidAppId");
             return;
         }
 
@@ -1849,6 +1853,7 @@ public class Game extends AppCompatActivity implements SurfaceHolder.Callback,
 
     @Override
     protected void onDestroy() {
+        logGameActivityState("onDestroy before cleanup");
         super.onDestroy();
 
         boolean destroyingCurrentInstance = instance == this;
@@ -1917,6 +1922,7 @@ public class Game extends AppCompatActivity implements SurfaceHolder.Callback,
     @Override
     protected void onResume() {
         super.onResume();
+        logGameActivityState("onResume");
         // Handle direct foreground restoration (e.g., power button lock/unlock) that bypasses
         // AppView and its checkAndReconnectLastSession() call.
         // Game uses launchMode=singleTask, so a plain finish() may drop to the home screen
@@ -1947,6 +1953,7 @@ public class Game extends AppCompatActivity implements SurfaceHolder.Callback,
 
     @Override
     protected void onPause() {
+        logGameActivityState("onPause before super");
         if (isFinishing()) {
             // Stop any further input device notifications before we lose focus (and pointer capture)
             if (controllerHandler != null) {
@@ -1964,7 +1971,7 @@ public class Game extends AppCompatActivity implements SurfaceHolder.Callback,
     protected void onStop() {
         super.onStop();
 
-        LimeLog.info("Game.onStop: isFinishing=" + isFinishing() + " connected=" + connected);
+        logGameActivityState("onStop begin");
 
         SpinnerDialog.closeDialogs(this);
         Dialog.closeDialogs();
@@ -2057,7 +2064,101 @@ public class Game extends AppCompatActivity implements SurfaceHolder.Callback,
 
         }
 
+        if (isFinishing()) {
+            LimeLog.info("Game.onStop: Activity is already finishing; exitReason=" + pendingExitReason);
+        } else {
+            finishWithReason("onStop");
+        }
+    }
+
+    private void finishWithReason(String reason) {
+        logFinishRequested(reason);
         finish();
+    }
+
+    private void logFinishRequested(String reason) {
+        pendingExitReason = reason;
+        logGameActivityState("finish requested");
+
+        if (isTaskRootSafe()) {
+            LimeLog.warning("Game.finish requested while Game is the task root. " +
+                    "If no AppView/PcView exists under this Activity, Android will return to the launcher/home screen. " +
+                    "reason=" + reason);
+        }
+    }
+
+    private void logGameActivityState(String event) {
+        LimeLog.info("Game." + event + ": " + getActivityStateSummary());
+    }
+
+    private String getActivityStateSummary() {
+        StringBuilder sb = new StringBuilder();
+        sb.append("exitReason=").append(pendingExitReason)
+                .append(" isFinishing=").append(isFinishing())
+                .append(" isTaskRoot=").append(isTaskRootSafe())
+                .append(" connected=").append(connected)
+                .append(" connecting=").append(connecting)
+                .append(" attemptedConnection=").append(attemptedConnection)
+                .append(" displayedFailureDialog=").append(displayedFailureDialog)
+                .append(" quitOnStop=").append(quitOnStop)
+                .append(" hasLastSession=").append(LastSessionManager.hasSession(this))
+                .append(" appId=").append(appId)
+                .append(" appName=").append(appName)
+                .append(" pcName=").append(pcName)
+                .append(" vDisplay=").append(vDisplay)
+                .append(" onExternalDisplay=").append(onExternelDisplay)
+                .append(" intentFlags=0x").append(Integer.toHexString(getIntent().getFlags()))
+                .append(" displayId=").append(getCurrentDisplayIdSafe())
+                .append(" taskId=").append(getTaskId())
+                .append(" ").append(getAppTaskSummary());
+        return sb.toString();
+    }
+
+    private boolean isTaskRootSafe() {
+        try {
+            return isTaskRoot();
+        } catch (RuntimeException e) {
+            LimeLog.warning("Unable to query Game.isTaskRoot: " + e.getMessage());
+            return false;
+        }
+    }
+
+    private int getCurrentDisplayIdSafe() {
+        try {
+            Display display = getWindowManager().getDefaultDisplay();
+            return display != null ? display.getDisplayId() : -1;
+        } catch (RuntimeException e) {
+            return -1;
+        }
+    }
+
+    private String getAppTaskSummary() {
+        try {
+            ActivityManager activityManager = (ActivityManager) getSystemService(Context.ACTIVITY_SERVICE);
+            if (activityManager == null) {
+                return "appTasks=unavailable";
+            }
+
+            List<ActivityManager.AppTask> appTasks = activityManager.getAppTasks();
+            StringBuilder sb = new StringBuilder("appTasks=").append(appTasks.size());
+            for (ActivityManager.AppTask appTask : appTasks) {
+                ActivityManager.RecentTaskInfo taskInfo = appTask.getTaskInfo();
+                ComponentName baseComponent = taskInfo.baseIntent != null ? taskInfo.baseIntent.getComponent() : null;
+                sb.append(" {id=").append(taskInfo.id)
+                        .append(", base=").append(componentNameToString(baseComponent))
+                        .append(", orig=").append(componentNameToString(taskInfo.origActivity))
+                        .append(", baseFlags=0x")
+                        .append(taskInfo.baseIntent != null ? Integer.toHexString(taskInfo.baseIntent.getFlags()) : "0")
+                        .append("}");
+            }
+            return sb.toString();
+        } catch (RuntimeException e) {
+            return "appTasks=queryFailed:" + e.getClass().getSimpleName() + ":" + e.getMessage();
+        }
+    }
+
+    private String componentNameToString(ComponentName componentName) {
+        return componentName != null ? componentName.flattenToShortString() : "null";
     }
 
     public static String formatCurrentTime(long currentTimeMillis) {
@@ -2149,7 +2250,7 @@ public class Game extends AppCompatActivity implements SurfaceHolder.Callback,
 
                     // Quit
                     case KeyEvent.KEYCODE_Q:
-                        finish();
+                        finishWithReason("keyboardShortcutQuit");
                         break;
 
                     // Toggle cursor visibility
@@ -3803,6 +3904,9 @@ public class Game extends AppCompatActivity implements SurfaceHolder.Callback,
 
     private void stopConnection() {
         if (connecting || connected) {
+            LimeLog.info("Game.stopConnection: exitReason=" + pendingExitReason +
+                    " connecting=" + connecting + " connected=" + connected +
+                    " quitOnStop=" + quitOnStop);
             connecting = connected = false;
             updatePipAutoEnter();
 
@@ -3818,13 +3922,18 @@ public class Game extends AppCompatActivity implements SurfaceHolder.Callback,
             // during the process of stopping this one.
             new Thread() {
                 public void run() {
+                    LimeLog.info("Game.stopConnection: conn.stop begin exitReason=" + pendingExitReason);
                     conn.stop();
+                    LimeLog.info("Game.stopConnection: conn.stop complete exitReason=" + pendingExitReason);
                     if (httpConn != null && quitOnStop) {
                         try {
+                            LimeLog.info("Game.stopConnection: quitOnStop=true; sending quitApp for " + appName);
                             sleep(1000);
                             httpConn.quitApp();
+                            LimeLog.info("Game.stopConnection: quitApp succeeded for " + appName);
                             Game.this.runOnUiThread(() -> Toast.makeText(Game.this, Game.this.getResources().getString(R.string.applist_quit_success) + " " + appName, Toast.LENGTH_LONG).show());
                         } catch (Exception e) {
+                            LimeLog.warning("Game.stopConnection: quitApp failed: " + e.getMessage());
                             Game.this.runOnUiThread(() -> Toast.makeText(Game.this, e.getMessage(), Toast.LENGTH_LONG).show());
                         }
                     }
@@ -3986,7 +4095,7 @@ public class Game extends AppCompatActivity implements SurfaceHolder.Callback,
                                 message, true);
                     }
                     else {
-                        finish();
+                        finishWithReason("gracefulTermination");
                     }
                 }
             }
@@ -4393,6 +4502,7 @@ public class Game extends AppCompatActivity implements SurfaceHolder.Callback,
             showGameMenu(null);
             return;
         }
+        logFinishRequested("backPressed");
         super.onBackPressed();
     }
 
@@ -4401,15 +4511,43 @@ public class Game extends AppCompatActivity implements SurfaceHolder.Callback,
             return;
         }
 
-        String commandId = cmdIndex < serverCommandIds.size() ? serverCommandIds.get(cmdIndex) : serverCommands.get(cmdIndex);
-        sendExecServerCmd(commandId, null);
+        String commandIdString = cmdIndex < serverCommandIds.size() ? serverCommandIds.get(cmdIndex) : String.valueOf(cmdIndex);
+        Integer commandId = parseServerCommandId(commandIdString);
+        if (commandId == null) {
+            LimeLog.warning("Invalid server command id: " + commandIdString +
+                    " for command=" + serverCommands.get(cmdIndex));
+            return;
+        }
+
+        sendExecServerCommandId(commandId);
     }
 
-    private boolean sendExecServerCmd(String commandId, String args) {
-        if (conn != null && commandId != null && !commandId.isEmpty()) {
-            return conn.sendExecServerCmd(commandId, args);
+    private boolean sendExecServerCommandId(int commandId) {
+        if (conn != null) {
+            LimeLog.info("Sending server command id=" + commandId);
+            return conn.sendExecServerCmd(commandId);
         }
         return false;
+    }
+
+    private Integer parseServerCommandId(String commandIdString) {
+        if (commandIdString == null) {
+            return null;
+        }
+
+        String trimmed = commandIdString.trim();
+        if (trimmed.isEmpty()) {
+            return null;
+        }
+
+        try {
+            int commandId = trimmed.startsWith("0x") || trimmed.startsWith("0X")
+                    ? Integer.parseInt(trimmed.substring(2), 16)
+                    : Integer.parseInt(trimmed);
+            return commandId >= 0 && commandId <= 0xFF ? commandId : null;
+        } catch (NumberFormatException e) {
+            return null;
+        }
     }
 
     public ArrayList<String> getServerCmds() {
@@ -5030,14 +5168,16 @@ public class Game extends AppCompatActivity implements SurfaceHolder.Callback,
     }
 
     public void disconnect() {
-        LastSessionManager.clear(Game.this);
+        logGameActivityState("disconnect requested before clear");
+        LastSessionManager.clear(Game.this, "Game.disconnect");
         if (prefConfig.smartClipboardSync) {
             getClipboard(-1);
         }
-        finish();
+        finishWithReason("disconnect");
     }
 
     public void quit() {
+        logGameActivityState("quit dialog requested");
         Context context;
         if (isOnExternalDisplay() && ExternalDisplayControlActivity.instance != null) {
             context = ExternalDisplayControlActivity.instance;
@@ -5049,10 +5189,11 @@ public class Game extends AppCompatActivity implements SurfaceHolder.Callback,
         builder.setMessage(R.string.game_dialog_message_quit_confirm);
 
         builder.setPositiveButton(getString(R.string.yes), (dialog, which) -> {
-            LastSessionManager.clear(Game.this);
+            logGameActivityState("quit confirmed before clear");
+            LastSessionManager.clear(Game.this, "Game.quit");
             quitOnStop = true;
             dialog.dismiss();
-            finish();
+            finishWithReason("quit");
         });
 
         builder.setNegativeButton(getString(R.string.no), (dialog, which) -> dialog.dismiss());

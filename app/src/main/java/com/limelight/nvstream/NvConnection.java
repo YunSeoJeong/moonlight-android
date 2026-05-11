@@ -481,9 +481,9 @@ public class NvConnection {
         }).start();
     }
 
-    public boolean sendExecServerCmd(final String commandId, final String args) {
+    public boolean sendExecServerCmd(final int commandId) {
         if (!isMonkey) {
-            return MoonBridge.sendExecServerCmd(commandId, args) == 0;
+            return MoonBridge.sendExecServerCmd(commandId) == 0;
         }
         return false;
     }
