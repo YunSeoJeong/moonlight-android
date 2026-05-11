@@ -2073,7 +2073,17 @@ public class Game extends AppCompatActivity implements SurfaceHolder.Callback,
 
     private void finishWithReason(String reason) {
         logFinishRequested(reason);
+        launchPcViewIfExplicitExitWouldLeaveTask(reason);
         finish();
+    }
+
+    private void launchPcViewIfExplicitExitWouldLeaveTask(String reason) {
+        if (!("disconnect".equals(reason) || "quit".equals(reason)) || !isTaskRootSafe()) {
+            return;
+        }
+
+        LimeLog.info("Game.finish: launching PcView before explicit exit because Game is task root. reason=" + reason);
+        startActivity(new Intent(this, PcView.class));
     }
 
     private void logFinishRequested(String reason) {
