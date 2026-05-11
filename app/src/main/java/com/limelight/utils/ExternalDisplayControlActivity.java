@@ -68,6 +68,7 @@ public class ExternalDisplayControlActivity extends AppCompatActivity implements
     private ImageButton zoomButton;
     private KeyBoardLayoutController keyBoardLayoutController;
     private VirtualController virtualController;
+    private Game boundGame;
 
     private boolean isKeyboardVisible = false;
 
@@ -147,6 +148,16 @@ public class ExternalDisplayControlActivity extends AppCompatActivity implements
         initViews();
     }
 
+    @Override
+    protected void onNewIntent(Intent intent) {
+        super.onNewIntent(intent);
+        setIntent(intent);
+
+        if (rootLayout != null) {
+            rebindToCurrentGame();
+        }
+    }
+
     private void initViews() {
         if (Game.instance == null) {
             if (failCount > 10) {
@@ -177,10 +188,8 @@ public class ExternalDisplayControlActivity extends AppCompatActivity implements
             });
         }
 
-        initializeComponents();
-        createProgrammaticUI();
+        rebindToCurrentGame();
         checkNotificationPermission();
-        initTouchEventHandling();
         setupInactivityTimeoutForBrightness();
         requestFocusToGameActivity(false);
     }
@@ -202,6 +211,11 @@ public class ExternalDisplayControlActivity extends AppCompatActivity implements
         super.onResume();
         if (!isGameInstanceAvailable() && gameMenu != null) {
             finish();
+            return;
+        }
+
+        if (rootLayout != null && boundGame != Game.instance) {
+            rebindToCurrentGame();
         }
     }
 
@@ -216,10 +230,13 @@ public class ExternalDisplayControlActivity extends AppCompatActivity implements
     @Override
     protected void onDestroy() {
         super.onDestroy();
-        if (Game.instance != null) {
-            Game.instance.resetVirtualControllerInputState(VirtualController.DISPLAY_TARGET_SUB);
+        Game game = boundGame != null ? boundGame : Game.instance;
+        if (game != null) {
+            game.resetVirtualControllerInputState(VirtualController.DISPLAY_TARGET_SUB);
         }
-        instance = null;
+        if (instance == this) {
+            instance = null;
+        }
     }
 
     @Override
@@ -229,6 +246,10 @@ public class ExternalDisplayControlActivity extends AppCompatActivity implements
 
     @SuppressLint("ClickableViewAccessibility")
     private void setupInactivityTimeoutForBrightness() {
+        if (dimScreenRunnable != null) {
+            handler.removeCallbacks(dimScreenRunnable);
+        }
+
         // Save the original brightness
         WindowManager.LayoutParams layout = getWindow().getAttributes();
         originalBrightness = layout.screenBrightness;
@@ -315,6 +336,27 @@ public class ExternalDisplayControlActivity extends AppCompatActivity implements
      */
     private void initializeComponents() {
         this.gameMenu = new GameMenu(Game.instance, instance);
+    }
+
+    private void rebindToCurrentGame() {
+        if (!isGameInstanceAvailable()) {
+            finish();
+            return;
+        }
+
+        if (boundGame != null && boundGame != Game.instance) {
+            boundGame.resetVirtualControllerInputState(VirtualController.DISPLAY_TARGET_SUB);
+        }
+
+        boundGame = Game.instance;
+        prefConfig = PreferenceConfiguration.readPreferences(this);
+        virtualController = null;
+        keyBoardLayoutController = null;
+        isKeyboardVisible = false;
+
+        initializeComponents();
+        createProgrammaticUI();
+        initTouchEventHandling();
     }
 
     @Override

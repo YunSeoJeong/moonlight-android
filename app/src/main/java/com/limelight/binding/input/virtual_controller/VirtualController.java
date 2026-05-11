@@ -155,11 +155,11 @@ public class VirtualController {
             hideControlElements();
         }
 
-        buttonConfigure.setVisibility(View.VISIBLE);
+        updateConfigureButtonVisibility();
     }
 
     public int switchShowHide() {
-        if (buttonConfigure.getVisibility() == View.VISIBLE) {
+        if (isShowing()) {
             hide();
             return 0;
         } else {
@@ -198,6 +198,7 @@ public class VirtualController {
         }
 
         buttonConfigure.setVisibility(View.VISIBLE);
+        updateConfigureButtonVisibility();
         buttonConfigure.invalidate();
     }
 
@@ -321,6 +322,7 @@ public class VirtualController {
         params.leftMargin = 15 + getLayoutOffsetX();
         params.topMargin = 15 + getLayoutOffsetY();
         frame_layout.addView(buttonConfigure, params);
+        updateConfigureButtonVisibility();
 
         if (!WebGamepadLayoutLoader.loadIfAvailable(this, context) && defaultLayoutFallbackEnabled) {
             // Start with the default layout
@@ -341,6 +343,28 @@ public class VirtualController {
 
     public ControllerMode getControllerMode() {
         return currentMode;
+    }
+
+    private boolean isConfigureButtonHiddenByPreference() {
+        return PreferenceConfiguration.readPreferences(context).hideOSCSettingsButton;
+    }
+
+    private boolean isShowing() {
+        if (!isConfigureButtonHiddenByPreference() && buttonConfigure.getVisibility() == View.VISIBLE) {
+            return true;
+        }
+
+        for (VirtualControllerElement element : elements) {
+            if (element.getVisibility() == View.VISIBLE) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private void updateConfigureButtonVisibility() {
+        buttonConfigure.setVisibility(isConfigureButtonHiddenByPreference() ? View.GONE : View.VISIBLE);
     }
 
     public ControllerInputContext getControllerInputContext() {

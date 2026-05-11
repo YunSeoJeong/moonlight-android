@@ -1851,10 +1851,13 @@ public class Game extends AppCompatActivity implements SurfaceHolder.Callback,
     protected void onDestroy() {
         super.onDestroy();
 
-        instance = null;
+        boolean destroyingCurrentInstance = instance == this;
         timerHandler.removeCallbacksAndMessages(null);
 
-        DualDisplayVirtualGamepadManager.close();
+        if (destroyingCurrentInstance) {
+            DualDisplayVirtualGamepadManager.close();
+            instance = null;
+        }
         if (virtualControllerStateAggregator != null) {
             virtualControllerStateAggregator.reset();
             virtualControllerStateAggregator = null;

@@ -206,6 +206,8 @@
     <string name="title_reset_osc">가상 컨트롤러 배치 초기화</string>
     <string name="summary_only_l3r3">L3 및 R3을 제외한 모든 가상 버튼을 숨깁니다</string>
     <string name="title_only_l3r3">L3와 R3버튼만 표시하기</string>
+    <string name="title_hide_osc_settings_button">설정 버튼 숨기기</string>
+    <string name="summary_hide_osc_settings_button">세션 중 가상 게임패드의 톱니바퀴 버튼을 숨깁니다</string>
     <string name="summary_checkbox_flip_face_buttons">컨트롤러 및 가상 컨트롤러의 A / B 와 X / Y 버튼을 바꿉니다</string>
     <string name="summary_checkbox_vibrate_osc">가상 컨트롤러에서 장치를 진동하여 게임패드 진동을 구현합니다</string>
     <string name="title_checkbox_vibrate_osc">진동 활성화</string>

@@ -43,11 +43,16 @@ public final class DualDisplayVirtualGamepadManager {
     }
 
     public static void start(Game game) {
-        close();
+        closeWindowAreaPresentation();
+        if (Game.instance != null) {
+            Game.instance.resetVirtualControllerInputState(VirtualController.DISPLAY_TARGET_SUB);
+        }
 
         if (tryStartOnSecondaryDisplay(game)) {
             return;
         }
+
+        ExternalDisplayControlActivity.closeExternalDisplayControl();
 
         if (!tryStartWindowAreaPresentation(game)) {
             game.runOnUiThread(() ->
@@ -63,6 +68,10 @@ public final class DualDisplayVirtualGamepadManager {
             Game.instance.resetVirtualControllerInputState(VirtualController.DISPLAY_TARGET_SUB);
         }
 
+        closeWindowAreaPresentation();
+    }
+
+    private static void closeWindowAreaPresentation() {
         if (windowAreaController != null && windowAreaListener != null) {
             try {
                 windowAreaController.removeWindowAreasListener(windowAreaListener);

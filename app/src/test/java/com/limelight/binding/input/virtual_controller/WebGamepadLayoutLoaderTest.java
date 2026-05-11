@@ -1,6 +1,7 @@
 package com.limelight.binding.input.virtual_controller;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.clearInvocations;
@@ -9,6 +10,8 @@ import static org.mockito.Mockito.verify;
 
 import android.content.Context;
 import android.view.MotionEvent;
+import android.view.View;
+import android.widget.Button;
 import android.widget.FrameLayout;
 
 import androidx.preference.PreferenceManager;
@@ -30,6 +33,7 @@ public class WebGamepadLayoutLoaderTest {
         PreferenceManager.getDefaultSharedPreferences(context)
                 .edit()
                 .remove("seekbar_virtual_gamepad_anti_deadzone")
+                .remove("checkbox_hide_osc_settings_button")
                 .apply();
     }
 
@@ -153,5 +157,42 @@ public class WebGamepadLayoutLoaderTest {
                 eq((short) 0),
                 eq((byte) 0),
                 eq((byte) 0));
+    }
+
+    @Test
+    public void hideSettingsButtonPreferenceHidesConfigureButton() throws Exception {
+        Context context = ApplicationProvider.getApplicationContext();
+        WebGamepadLayoutLoader.clearImportedLayout(context);
+        WebGamepadLayoutLoader.saveImportedLayout(context, "{\n" +
+                "  \"resolutions\": [{\n" +
+                "    \"width\": 100,\n" +
+                "    \"height\": 100,\n" +
+                "    \"components\": []\n" +
+                "  }]\n" +
+                "}");
+        PreferenceManager.getDefaultSharedPreferences(context)
+                .edit()
+                .putBoolean("checkbox_hide_osc_settings_button", true)
+                .apply();
+
+        ControllerHandler controllerHandler = mock(ControllerHandler.class);
+        FrameLayout frame = new FrameLayout(context);
+        frame.layout(0, 0, 100, 100);
+        VirtualController controller = new VirtualController(controllerHandler, frame, context);
+
+        controller.refreshLayout();
+        controller.show();
+
+        Button configureButton = null;
+        for (int i = 0; i < frame.getChildCount(); i++) {
+            View child = frame.getChildAt(i);
+            if (child instanceof Button) {
+                configureButton = (Button) child;
+                break;
+            }
+        }
+
+        assertNotNull(configureButton);
+        assertEquals(View.GONE, configureButton.getVisibility());
     }
 }
