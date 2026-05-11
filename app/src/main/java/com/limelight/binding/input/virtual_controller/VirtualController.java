@@ -302,6 +302,10 @@ public class VirtualController {
         if (getLayoutWidth() <= 0 || getLayoutHeight() <= 0) {
             if (!refreshPending && frame_layout != null) {
                 refreshPending = true;
+                LimeLog.info("VirtualController.refreshLayout pending: target=" + displayTarget +
+                        " layout=" + getLayoutWidth() + "x" + getLayoutHeight() +
+                        " overlay=" + getOverlayLayoutWidth() + "x" + getOverlayLayoutHeight() +
+                        " fallback=" + defaultLayoutFallbackEnabled);
                 frame_layout.post(new Runnable() {
                     @Override
                     public void run() {
@@ -313,6 +317,7 @@ public class VirtualController {
             return;
         }
 
+        int previousElementCount = elements.size();
         removeElements();
 
         DisplayMetrics screen = context.getResources().getDisplayMetrics();
@@ -324,12 +329,15 @@ public class VirtualController {
         frame_layout.addView(buttonConfigure, params);
         updateConfigureButtonVisibility();
 
-        if (!WebGamepadLayoutLoader.loadIfAvailable(this, context) && defaultLayoutFallbackEnabled) {
+        boolean loadedWebLayout = WebGamepadLayoutLoader.loadIfAvailable(this, context);
+        boolean usedDefaultLayout = false;
+        if (!loadedWebLayout && defaultLayoutFallbackEnabled) {
             // Start with the default layout
             VirtualControllerConfigurationLoader.createDefaultLayout(this, context);
 
             // Apply user preferences onto the default layout
             VirtualControllerConfigurationLoader.loadFromPreferences(this, context);
+            usedDefaultLayout = true;
         }
 
         if (!controlsEnabled) {
@@ -339,6 +347,16 @@ public class VirtualController {
         if (elements.isEmpty() && !defaultLayoutFallbackEnabled) {
             frame_layout.removeView(buttonConfigure);
         }
+
+        LimeLog.info("VirtualController.refreshLayout complete: target=" + displayTarget +
+                " previousElements=" + previousElementCount +
+                " elements=" + elements.size() +
+                " layout=" + getLayoutWidth() + "x" + getLayoutHeight() +
+                " overlay=" + getOverlayLayoutWidth() + "x" + getOverlayLayoutHeight() +
+                " webLayout=" + loadedWebLayout +
+                " defaultLayout=" + usedDefaultLayout +
+                " fallback=" + defaultLayoutFallbackEnabled +
+                " controlsEnabled=" + controlsEnabled);
     }
 
     public ControllerMode getControllerMode() {

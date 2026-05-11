@@ -935,6 +935,7 @@ public class Game extends AppCompatActivity implements SurfaceHolder.Callback,
 
         //特殊按键屏幕布局
         if (prefConfig.dualScreenVirtualGamepad) {
+            LimeLog.info("Game.onCreate: starting dual-screen virtual gamepad");
             DualDisplayVirtualGamepadManager.start(this);
         }
 
@@ -1185,6 +1186,10 @@ public class Game extends AppCompatActivity implements SurfaceHolder.Callback,
     }
 
     private void initVirtualController(){
+        LimeLog.info("Game.initVirtualController: dualScreenVirtualGamepad=" +
+                prefConfig.dualScreenVirtualGamepad + " rootView=" +
+                (rootView != null ? rootView.getClass().getSimpleName() : "null") +
+                " streamContainer=" + (streamContainer != null));
         if (prefConfig.dualScreenVirtualGamepad) {
             virtualController = new VirtualController(controllerHandler, (FrameLayout)rootView,
                     streamContainer, this, VirtualController.DISPLAY_TARGET_MAIN, true,
@@ -1195,6 +1200,8 @@ public class Game extends AppCompatActivity implements SurfaceHolder.Callback,
         }
         virtualController.refreshLayout();
         virtualController.show();
+        LimeLog.info("Game.initVirtualController: main controller shown elements=" +
+                virtualController.getElements().size());
     }
 
     public ControllerHandler getControllerHandler() {
@@ -1203,6 +1210,7 @@ public class Game extends AppCompatActivity implements SurfaceHolder.Callback,
 
     public VirtualController.InputStateSink getVirtualControllerInputStateSink() {
         if (virtualControllerStateAggregator == null) {
+            LimeLog.info("Game.getVirtualControllerInputStateSink: creating aggregator");
             virtualControllerStateAggregator =
                     new VirtualControllerStateAggregator(controllerHandler);
         }
@@ -1210,6 +1218,8 @@ public class Game extends AppCompatActivity implements SurfaceHolder.Callback,
     }
 
     public void resetVirtualControllerInputState(String displayTarget) {
+        LimeLog.info("Game.resetVirtualControllerInputState: displayTarget=" + displayTarget +
+                " hasAggregator=" + (virtualControllerStateAggregator != null));
         if (virtualControllerStateAggregator != null) {
             virtualControllerStateAggregator.resetDisplay(displayTarget);
         }
@@ -1347,6 +1357,8 @@ public class Game extends AppCompatActivity implements SurfaceHolder.Callback,
         if (virtualController != null) {
             // Refresh layout of OSC for possible new screen size
             virtualController.refreshLayout();
+            LimeLog.info("Game.onConfigurationChanged: refreshed main virtual controller elements=" +
+                    virtualController.getElements().size());
         }
 
         if(keyBoardController != null){
@@ -1860,10 +1872,12 @@ public class Game extends AppCompatActivity implements SurfaceHolder.Callback,
         timerHandler.removeCallbacksAndMessages(null);
 
         if (destroyingCurrentInstance) {
+            LimeLog.info("Game.onDestroy: closing dual-screen virtual gamepad manager");
             DualDisplayVirtualGamepadManager.close();
             instance = null;
         }
         if (virtualControllerStateAggregator != null) {
+            LimeLog.info("Game.onDestroy: resetting virtual controller state aggregator");
             virtualControllerStateAggregator.reset();
             virtualControllerStateAggregator = null;
         }
@@ -1936,7 +1950,10 @@ public class Game extends AppCompatActivity implements SurfaceHolder.Callback,
                 && LastSessionManager.hasSession(this)) {
             Intent reconnectIntent = LastSessionManager.buildReconnectIntent(this);
             if (reconnectIntent != null) {
-                LimeLog.info("Game.onResume: relaunching Game for auto-reconnect");
+                LimeLog.info("Game.onResume: relaunching Game for auto-reconnect; dualScreenVirtualGamepad=" +
+                        (prefConfig != null && prefConfig.dualScreenVirtualGamepad) +
+                        " externalControlActive=" +
+                        (ExternalDisplayControlActivity.instance != null));
                 // Session will be re-saved on connectionStarted() in the new instance
                 LastSessionManager.clear(this);
                 reconnectIntent.addFlags(
@@ -2117,6 +2134,10 @@ public class Game extends AppCompatActivity implements SurfaceHolder.Callback,
                 .append(" pcName=").append(pcName)
                 .append(" vDisplay=").append(vDisplay)
                 .append(" onExternalDisplay=").append(onExternelDisplay)
+                .append(" dualScreenVirtualGamepad=")
+                .append(prefConfig != null && prefConfig.dualScreenVirtualGamepad)
+                .append(" externalControlActive=")
+                .append(ExternalDisplayControlActivity.instance != null)
                 .append(" intentFlags=0x").append(Integer.toHexString(getIntent().getFlags()))
                 .append(" displayId=").append(getCurrentDisplayIdSafe())
                 .append(" taskId=").append(getTaskId())

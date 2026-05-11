@@ -1,5 +1,6 @@
 package com.limelight.binding.input.virtual_controller;
 
+import com.limelight.LimeLog;
 import com.limelight.binding.input.ControllerHandler;
 
 public class VirtualControllerStateAggregator implements VirtualController.InputStateSink {
@@ -11,6 +12,8 @@ public class VirtualControllerStateAggregator implements VirtualController.Input
 
     public VirtualControllerStateAggregator(ControllerHandler controllerHandler) {
         this.controllerHandler = controllerHandler;
+        LimeLog.info("VirtualControllerStateAggregator: created controllerHandler=" +
+                (controllerHandler != null));
     }
 
     @Override
@@ -26,12 +29,14 @@ public class VirtualControllerStateAggregator implements VirtualController.Input
     }
 
     public synchronized void reset() {
+        LimeLog.info("VirtualControllerStateAggregator.reset: clearing main and sub state");
         clearState(mainState);
         clearState(subState);
         reportMergedState();
     }
 
     public synchronized void resetDisplay(String displayTarget) {
+        LimeLog.info("VirtualControllerStateAggregator.resetDisplay: displayTarget=" + displayTarget);
         if (VirtualController.DISPLAY_TARGET_SUB.equals(displayTarget)) {
             clearState(subState);
         } else {

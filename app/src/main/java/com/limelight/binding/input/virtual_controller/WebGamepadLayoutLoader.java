@@ -142,6 +142,8 @@ public class WebGamepadLayoutLoader {
         try {
             String json = readLayout(context);
             if (json == null || json.trim().isEmpty()) {
+                LimeLog.info("WebGamepadLayoutLoader: no layout json available for target=" +
+                        controller.getDisplayTarget());
                 return false;
             }
 
@@ -150,6 +152,10 @@ public class WebGamepadLayoutLoader {
             LayoutTarget layoutTarget = getLayoutTarget(controller, context, config);
             JSONObject resolution = chooseResolution(root.optJSONArray("resolutions"), layoutTarget);
             if (resolution == null) {
+                LimeLog.warning("WebGamepadLayoutLoader: no matching resolution for target=" +
+                        layoutTarget.displayTarget + " layoutTarget=" +
+                        layoutTarget.width + "x" + layoutTarget.height +
+                        " source=" + config.virtualGamepadLayoutResolutionSource);
                 return false;
             }
 
@@ -210,10 +216,25 @@ public class WebGamepadLayoutLoader {
             }
 
             if (added == 0 && !resolutionTargetMatchesExplicitly) {
+                LimeLog.warning("WebGamepadLayoutLoader: matched resolution has no usable elements for target=" +
+                        layoutTarget.displayTarget + " resolution=" +
+                        resolution.optInt("width") + "x" + resolution.optInt("height") +
+                        " explicitResolutionTarget=" + resolutionTargetMatchesExplicitly +
+                        " componentCandidates=" + componentList.size() +
+                        " mouseRegionCandidates=" + mouseRegionList.size());
                 return false;
             }
 
             controller.setOpacity(config.oscOpacity);
+            LimeLog.info("WebGamepadLayoutLoader: loaded layout for target=" +
+                    layoutTarget.displayTarget + " resolution=" +
+                    resolution.optInt("width") + "x" + resolution.optInt("height") +
+                    " layoutTarget=" + layoutTarget.width + "x" + layoutTarget.height +
+                    " explicitResolutionTarget=" + resolutionTargetMatchesExplicitly +
+                    " elementsAdded=" + added +
+                    " components=" + componentList.size() +
+                    " mouseRegions=" + mouseRegionList.size() +
+                    " alignToReferenceView=" + layoutTarget.alignToReferenceView);
             return true;
         } catch (Exception e) {
             LimeLog.warning("Unable to load web gamepad layout: " + e.getMessage());

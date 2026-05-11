@@ -119,10 +119,12 @@ public class ExternalDisplayControlActivity extends AppCompatActivity implements
 
         instance = this;
         prefConfig = PreferenceConfiguration.readPreferences(this);
+        logLifecycleState("onCreate");
 
         if (!isGameInstanceAvailable()) {
             Intent gameIntent = getIntent().getParcelableExtra(EXTRA_LAUNCH_INTENT);
             if (gameIntent == null) {
+                LimeLog.warning("ExternalDisplayControlActivity.onCreate: no Game instance and no launch intent");
                 finish();
             } else {
                 Display secondaryDisplay = getSecondaryDisplay(this);
@@ -152,6 +154,7 @@ public class ExternalDisplayControlActivity extends AppCompatActivity implements
     protected void onNewIntent(Intent intent) {
         super.onNewIntent(intent);
         setIntent(intent);
+        logLifecycleState("onNewIntent");
 
         if (rootLayout != null) {
             rebindToCurrentGame();
@@ -162,9 +165,12 @@ public class ExternalDisplayControlActivity extends AppCompatActivity implements
         if (Game.instance == null) {
             if (failCount > 10) {
                 Toast.makeText(this, getString(R.string.no_game_instance), Toast.LENGTH_LONG).show();
+                LimeLog.warning("ExternalDisplayControlActivity.initViews: giving up waiting for Game instance");
                 finish();
             }
             // Wait for the intent to get started
+            LimeLog.info("ExternalDisplayControlActivity.initViews: waiting for Game instance failCount=" +
+                    failCount);
             handler.postDelayed(this::initViews, 500);
             failCount++;
             return;
@@ -209,6 +215,7 @@ public class ExternalDisplayControlActivity extends AppCompatActivity implements
     @Override
     protected void onResume() {
         super.onResume();
+        logLifecycleState("onResume");
         if (!isGameInstanceAvailable() && gameMenu != null) {
             finish();
             return;
@@ -222,6 +229,7 @@ public class ExternalDisplayControlActivity extends AppCompatActivity implements
     @Override
     protected void onPause() {
         super.onPause();
+        logLifecycleState("onPause");
         if (!isGameInstanceAvailable()) {
             finish();
         }
@@ -229,6 +237,7 @@ public class ExternalDisplayControlActivity extends AppCompatActivity implements
 
     @Override
     protected void onDestroy() {
+        logLifecycleState("onDestroy before cleanup");
         super.onDestroy();
         Game game = boundGame != null ? boundGame : Game.instance;
         if (game != null) {
@@ -331,6 +340,40 @@ public class ExternalDisplayControlActivity extends AppCompatActivity implements
         return Game.instance != null;
     }
 
+    private void logLifecycleState(String event) {
+        LimeLog.info("ExternalDisplayControlActivity." + event +
+                ": hasGame=" + (Game.instance != null) +
+                " boundGame=" + (boundGame != null) +
+                " dualScreenVirtualGamepad=" +
+                (prefConfig != null && prefConfig.dualScreenVirtualGamepad) +
+                " root=" + getRootLayoutSize() +
+                " subElements=" + getSubVirtualControllerElementCount() +
+                " displayId=" + getDisplayIdSafe() +
+                " taskId=" + getTaskId());
+    }
+
+    private String getRootLayoutSize() {
+        if (rootLayout == null) {
+            return "null";
+        }
+        return rootLayout.getWidth() + "x" + rootLayout.getHeight();
+    }
+
+    private int getSubVirtualControllerElementCount() {
+        return virtualController != null ? virtualController.getElements().size() : -1;
+    }
+
+    private int getDisplayIdSafe() {
+        try {
+            Display display = getWindowManager().getDefaultDisplay();
+            return display != null ? display.getDisplayId() : -1;
+        } catch (RuntimeException e) {
+            LimeLog.warning("ExternalDisplayControlActivity: unable to query display id: " +
+                    e.getMessage());
+            return -1;
+        }
+    }
+
     /**
      * Initializes core components needed for this controller Activity.
      */
@@ -339,12 +382,14 @@ public class ExternalDisplayControlActivity extends AppCompatActivity implements
     }
 
     private void rebindToCurrentGame() {
+        logLifecycleState("rebindToCurrentGame begin");
         if (!isGameInstanceAvailable()) {
             finish();
             return;
         }
 
         if (boundGame != null && boundGame != Game.instance) {
+            LimeLog.info("ExternalDisplayControlActivity.rebindToCurrentGame: resetting previous bound Game sub input state");
             boundGame.resetVirtualControllerInputState(VirtualController.DISPLAY_TARGET_SUB);
         }
 
@@ -357,10 +402,14 @@ public class ExternalDisplayControlActivity extends AppCompatActivity implements
         initializeComponents();
         createProgrammaticUI();
         initTouchEventHandling();
+        logLifecycleState("rebindToCurrentGame complete");
     }
 
     @Override
     public void onConfigurationChanged(@NonNull Configuration newConfig) {
+        LimeLog.info("ExternalDisplayControlActivity.onConfigurationChanged: orientation=" +
+                newConfig.orientation + " hasGame=" + (Game.instance != null) +
+                " subElements=" + getSubVirtualControllerElementCount());
         if (Game.instance != null) {
             Game.instance.onConfigurationChanged(newConfig);
         }
@@ -432,6 +481,7 @@ public class ExternalDisplayControlActivity extends AppCompatActivity implements
 
     @SuppressLint("ClickableViewAccessibility")
     private void createProgrammaticUI() {
+        logLifecycleState("createProgrammaticUI begin");
         rootLayout = new ExternalControllerView(this);
         rootLayout.setLayoutParams(new ViewGroup.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT,
@@ -491,6 +541,7 @@ public class ExternalDisplayControlActivity extends AppCompatActivity implements
         if (prefConfig.dualScreenVirtualGamepad) {
             initVirtualController();
         }
+        logLifecycleState("createProgrammaticUI complete");
     }
 
     /**
@@ -511,14 +562,25 @@ public class ExternalDisplayControlActivity extends AppCompatActivity implements
 
     private void initVirtualController() {
         if (Game.instance == null) {
+            LimeLog.warning("ExternalDisplayControlActivity.initVirtualController: skipped because Game.instance is null");
             return;
         }
 
+        LimeLog.info("ExternalDisplayControlActivity.initVirtualController: creating sub controller root=" +
+                (rootLayout != null ? rootLayout.getWidth() + "x" + rootLayout.getHeight() : "null"));
         virtualController = new VirtualController(Game.instance.getControllerHandler(),
                 rootLayout, null, this, VirtualController.DISPLAY_TARGET_SUB, false,
                 Game.instance.getVirtualControllerInputStateSink());
         virtualController.refreshLayout();
         virtualController.show();
+        LimeLog.info("ExternalDisplayControlActivity.initVirtualController: sub controller shown elements=" +
+                virtualController.getElements().size());
+        if (rootLayout != null) {
+            rootLayout.post(() -> LimeLog.info(
+                    "ExternalDisplayControlActivity.initVirtualController post-layout: root=" +
+                            rootLayout.getWidth() + "x" + rootLayout.getHeight() +
+                            " subElements=" + getSubVirtualControllerElementCount()));
+        }
     }
 
     /**
