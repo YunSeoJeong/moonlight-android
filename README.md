@@ -9,5 +9,8 @@
 8. 클라이언트 해상도 변경시 호스트 해상도 자동 변경
 9. 듀얼 스크린 디바이스에서 가상 게임패드를 양 디스플레이에 띄우기
 
+## 권장
+호스트: https://github.com/YunSeoJeong/Apollo
+
 ## 가상 패드 편집 에디터
 https://yunseojeong.github.io/virtual-gamepad-editor/
