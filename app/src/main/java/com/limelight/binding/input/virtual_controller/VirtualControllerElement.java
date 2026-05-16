@@ -21,6 +21,7 @@ import org.json.JSONObject;
 
 public abstract class VirtualControllerElement extends View {
     protected static boolean _PRINT_DEBUG_INFORMATION = false;
+    private static final int INVALID_POINTER_ID = -1;
 
     public static final int EID_DPAD = 1;
     public static final int EID_LT = 2;
@@ -59,6 +60,7 @@ public abstract class VirtualControllerElement extends View {
     float position_pressed_y = 0;
 
     public boolean enabled = true;
+    private int activePointerId = INVALID_POINTER_ID;
 
     private enum Mode {
         Normal,
@@ -235,17 +237,8 @@ public abstract class VirtualControllerElement extends View {
 
     @Override
     public boolean onTouchEvent(MotionEvent event) {
-        // Ignore secondary touches on controls
-        //
-        // NB: We can get an additional pointer down if the user touches a non-StreamView area
-        // while also touching an OSC control, even if that pointer down doesn't correspond to
-        // an area of the OSC control.
-        if (event.getActionIndex() != 0) {
-            return true;
-        }
-
         if (virtualController.getControllerMode() == VirtualController.ControllerMode.Active) {
-            return onElementTouchEvent(event);
+            return onActiveControllerTouchEvent(event);
         }
 
         switch (event.getActionMasked()) {
@@ -296,6 +289,96 @@ public abstract class VirtualControllerElement extends View {
             }
         }
         return true;
+    }
+
+    private boolean onActiveControllerTouchEvent(MotionEvent event) {
+        int action = event.getActionMasked();
+        int pointerIndex;
+
+        switch (action) {
+            case MotionEvent.ACTION_DOWN:
+            case MotionEvent.ACTION_POINTER_DOWN:
+                if (activePointerId != INVALID_POINTER_ID) {
+                    return true;
+                }
+
+                pointerIndex = event.getActionIndex();
+                if (!isPointerInside(event, pointerIndex)) {
+                    return true;
+                }
+
+                activePointerId = event.getPointerId(pointerIndex);
+                boolean handledDown = dispatchPointerEvent(event, MotionEvent.ACTION_DOWN, pointerIndex);
+                if (!handledDown) {
+                    activePointerId = INVALID_POINTER_ID;
+                }
+                return handledDown;
+
+            case MotionEvent.ACTION_MOVE:
+                pointerIndex = findActivePointerIndex(event);
+                if (pointerIndex < 0) {
+                    return true;
+                }
+                return dispatchPointerEvent(event, MotionEvent.ACTION_MOVE, pointerIndex);
+
+            case MotionEvent.ACTION_UP:
+            case MotionEvent.ACTION_POINTER_UP:
+                pointerIndex = findActivePointerIndex(event);
+                if (pointerIndex < 0) {
+                    return true;
+                }
+
+                boolean activePointerReleased =
+                        event.getPointerId(event.getActionIndex()) == activePointerId;
+                if (!activePointerReleased && action != MotionEvent.ACTION_UP) {
+                    return true;
+                }
+
+                boolean handledUp = dispatchPointerEvent(event, MotionEvent.ACTION_UP, pointerIndex);
+                activePointerId = INVALID_POINTER_ID;
+                return handledUp;
+
+            case MotionEvent.ACTION_CANCEL:
+                pointerIndex = findActivePointerIndex(event);
+                activePointerId = INVALID_POINTER_ID;
+                if (pointerIndex < 0) {
+                    return true;
+                }
+                return dispatchPointerEvent(event, MotionEvent.ACTION_CANCEL, pointerIndex);
+
+            default:
+                return true;
+        }
+    }
+
+    private int findActivePointerIndex(MotionEvent event) {
+        if (activePointerId == INVALID_POINTER_ID) {
+            return -1;
+        }
+        return event.findPointerIndex(activePointerId);
+    }
+
+    private boolean isPointerInside(MotionEvent event, int pointerIndex) {
+        float x = event.getX(pointerIndex);
+        float y = event.getY(pointerIndex);
+        return x >= 0 && y >= 0 && x < getWidth() && y < getHeight();
+    }
+
+    private boolean dispatchPointerEvent(MotionEvent event, int action, int pointerIndex) {
+        MotionEvent pointerEvent = MotionEvent.obtain(
+                event.getDownTime(),
+                event.getEventTime(),
+                action,
+                event.getX(pointerIndex),
+                event.getY(pointerIndex),
+                event.getMetaState());
+        pointerEvent.setSource(event.getSource());
+
+        try {
+            return onElementTouchEvent(pointerEvent);
+        } finally {
+            pointerEvent.recycle();
+        }
     }
 
     abstract protected void onElementDraw(Canvas canvas);

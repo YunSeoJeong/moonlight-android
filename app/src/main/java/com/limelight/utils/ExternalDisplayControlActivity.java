@@ -19,6 +19,8 @@ import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
+import android.util.SparseArray;
+import android.util.SparseBooleanArray;
 import android.view.Display;
 import android.view.Gravity;
 import android.view.KeyEvent;
@@ -47,6 +49,7 @@ import com.limelight.LimeLog;
 import com.limelight.R;
 import com.limelight.StartExternalDisplayControlReceiver;
 import com.limelight.binding.input.virtual_controller.VirtualController;
+import com.limelight.binding.input.virtual_controller.VirtualControllerElement;
 import com.limelight.binding.input.virtual_controller.keyboard.KeyBoardLayoutController;
 import com.limelight.preferences.PreferenceConfiguration;
 import com.limelight.ui.ExternalControllerView;
@@ -69,6 +72,8 @@ public class ExternalDisplayControlActivity extends AppCompatActivity implements
     private KeyBoardLayoutController keyBoardLayoutController;
     private VirtualController virtualController;
     private Game boundGame;
+    private final SparseArray<VirtualControllerElement> subVirtualTouchTargets = new SparseArray<>();
+    private final SparseBooleanArray subForwardedTouchIds = new SparseBooleanArray();
 
     private boolean isKeyboardVisible = false;
 
@@ -205,11 +210,345 @@ public class ExternalDisplayControlActivity extends AppCompatActivity implements
         // Intercept touch events on root layout
         rootLayout.setOnTouchListener((v, event) -> {
             handleUserActivity();
-            if (Game.instance != null) {
-                Game.instance.handleMotionEvent(v, event);
-            }
+            boolean actionPointerWasVirtual = isActionPointerSubVirtualTouch(event);
+            routeSubVirtualControllerTouch(event);
+            forwardSubTouchToGame(v, event, actionPointerWasVirtual);
             return true;
         });
+    }
+
+    private boolean isActionPointerSubVirtualTouch(MotionEvent event) {
+        int action = event.getActionMasked();
+        if (action != MotionEvent.ACTION_POINTER_UP && action != MotionEvent.ACTION_UP) {
+            return false;
+        }
+        return subVirtualTouchTargets.get(event.getPointerId(event.getActionIndex())) != null;
+    }
+
+    private boolean routeSubVirtualControllerTouch(MotionEvent event) {
+        if (virtualController == null ||
+                virtualController.getControllerMode() != VirtualController.ControllerMode.Active) {
+            subVirtualTouchTargets.clear();
+            return false;
+        }
+
+        switch (event.getActionMasked()) {
+            case MotionEvent.ACTION_DOWN:
+            case MotionEvent.ACTION_POINTER_DOWN: {
+                int pointerIndex = event.getActionIndex();
+                VirtualControllerElement target = findSubVirtualControllerElementAt(
+                        event.getX(pointerIndex), event.getY(pointerIndex));
+                if (target == null) {
+                    return false;
+                }
+
+                int pointerId = event.getPointerId(pointerIndex);
+                subVirtualTouchTargets.put(pointerId, target);
+                dispatchSubVirtualPointerEvent(target, event, MotionEvent.ACTION_DOWN, pointerIndex);
+                return true;
+            }
+            case MotionEvent.ACTION_MOVE: {
+                boolean handled = false;
+                for (int i = subVirtualTouchTargets.size() - 1; i >= 0; i--) {
+                    int pointerId = subVirtualTouchTargets.keyAt(i);
+                    int pointerIndex = event.findPointerIndex(pointerId);
+                    if (pointerIndex < 0) {
+                        subVirtualTouchTargets.removeAt(i);
+                        continue;
+                    }
+
+                    dispatchSubVirtualPointerEvent(subVirtualTouchTargets.valueAt(i),
+                            event, MotionEvent.ACTION_MOVE, pointerIndex);
+                    handled = true;
+                }
+                return handled;
+            }
+            case MotionEvent.ACTION_POINTER_UP:
+            case MotionEvent.ACTION_UP: {
+                int pointerIndex = event.getActionIndex();
+                int pointerId = event.getPointerId(pointerIndex);
+                VirtualControllerElement target = subVirtualTouchTargets.get(pointerId);
+                if (target == null) {
+                    if (event.getActionMasked() == MotionEvent.ACTION_UP) {
+                        subVirtualTouchTargets.clear();
+                    }
+                    return false;
+                }
+
+                dispatchSubVirtualPointerEvent(target, event, MotionEvent.ACTION_UP, pointerIndex);
+                subVirtualTouchTargets.delete(pointerId);
+                if (event.getActionMasked() == MotionEvent.ACTION_UP) {
+                    subVirtualTouchTargets.clear();
+                }
+                return true;
+            }
+            case MotionEvent.ACTION_CANCEL: {
+                boolean handled = false;
+                for (int i = subVirtualTouchTargets.size() - 1; i >= 0; i--) {
+                    int pointerId = subVirtualTouchTargets.keyAt(i);
+                    int pointerIndex = event.findPointerIndex(pointerId);
+                    if (pointerIndex >= 0) {
+                        dispatchSubVirtualPointerEvent(subVirtualTouchTargets.valueAt(i),
+                                event, MotionEvent.ACTION_CANCEL, pointerIndex);
+                        handled = true;
+                    }
+                }
+                subVirtualTouchTargets.clear();
+                return handled;
+            }
+            default:
+                return false;
+        }
+    }
+
+    private VirtualControllerElement findSubVirtualControllerElementAt(float x, float y) {
+        if (virtualController == null) {
+            return null;
+        }
+
+        for (int i = virtualController.getElements().size() - 1; i >= 0; i--) {
+            VirtualControllerElement element = virtualController.getElements().get(i);
+            if (element.getVisibility() != View.VISIBLE) {
+                continue;
+            }
+
+            float[] localPoint = getSubVirtualElementLocalPoint(element, x, y);
+            float localX = localPoint[0];
+            float localY = localPoint[1];
+            if (localX >= 0 && localY >= 0 &&
+                    localX < element.getWidth() && localY < element.getHeight()) {
+                return element;
+            }
+        }
+
+        return null;
+    }
+
+    private void dispatchSubVirtualPointerEvent(VirtualControllerElement target,
+                                                MotionEvent sourceEvent,
+                                                int action,
+                                                int pointerIndex) {
+        MotionEvent.PointerProperties[] properties = new MotionEvent.PointerProperties[1];
+        MotionEvent.PointerCoords[] coords = new MotionEvent.PointerCoords[1];
+
+        properties[0] = new MotionEvent.PointerProperties();
+        sourceEvent.getPointerProperties(pointerIndex, properties[0]);
+
+        coords[0] = new MotionEvent.PointerCoords();
+        sourceEvent.getPointerCoords(pointerIndex, coords[0]);
+        float[] localPoint = getSubVirtualElementLocalPoint(target, coords[0].x, coords[0].y);
+        coords[0].x = localPoint[0];
+        coords[0].y = localPoint[1];
+
+        MotionEvent pointerEvent = MotionEvent.obtain(
+                sourceEvent.getDownTime(),
+                sourceEvent.getEventTime(),
+                action,
+                1,
+                properties,
+                coords,
+                sourceEvent.getMetaState(),
+                sourceEvent.getButtonState(),
+                sourceEvent.getXPrecision(),
+                sourceEvent.getYPrecision(),
+                sourceEvent.getDeviceId(),
+                sourceEvent.getEdgeFlags(),
+                sourceEvent.getSource(),
+                sourceEvent.getFlags());
+
+        try {
+            target.onTouchEvent(pointerEvent);
+        } finally {
+            pointerEvent.recycle();
+        }
+    }
+
+    private float[] getSubVirtualElementLocalPoint(View element, float rootX, float rootY) {
+        if (rootLayout == null) {
+            return new float[] { rootX - element.getX(), rootY - element.getY() };
+        }
+
+        int[] rootLocation = new int[2];
+        int[] elementLocation = new int[2];
+        rootLayout.getLocationOnScreen(rootLocation);
+        element.getLocationOnScreen(elementLocation);
+        return new float[] {
+                rootLocation[0] + rootX - elementLocation[0],
+                rootLocation[1] + rootY - elementLocation[1]
+        };
+    }
+
+    private boolean forwardSubTouchToGame(View view, MotionEvent event, boolean actionPointerWasVirtual) {
+        if (Game.instance == null) {
+            subForwardedTouchIds.clear();
+            return true;
+        }
+
+        switch (event.getActionMasked()) {
+            case MotionEvent.ACTION_DOWN:
+            case MotionEvent.ACTION_POINTER_DOWN:
+                return forwardSubTouchDownToGame(view, event, actionPointerWasVirtual);
+            case MotionEvent.ACTION_MOVE:
+                return forwardSubTouchMoveToGame(view, event);
+            case MotionEvent.ACTION_POINTER_UP:
+            case MotionEvent.ACTION_UP:
+                return forwardSubTouchUpToGame(view, event, actionPointerWasVirtual);
+            case MotionEvent.ACTION_CANCEL:
+                return forwardSubTouchCancelToGame(view, event);
+            default:
+                return Game.instance.handleMotionEvent(view, event);
+        }
+    }
+
+    private boolean forwardSubTouchDownToGame(View view, MotionEvent event, boolean actionPointerWasVirtual) {
+        int actionPointerId = event.getPointerId(event.getActionIndex());
+        if (actionPointerWasVirtual || subVirtualTouchTargets.get(actionPointerId) != null) {
+            return true;
+        }
+
+        boolean hadForwardedPointers = hasForwardedTouchPointers();
+        int[] pointerIndices = getForwardablePointerIndices(event, false);
+        int filteredActionIndex = indexOfPointerId(event, pointerIndices, actionPointerId);
+        if (filteredActionIndex < 0) {
+            return true;
+        }
+
+        int action = hadForwardedPointers
+                ? MotionEvent.ACTION_POINTER_DOWN |
+                (filteredActionIndex << MotionEvent.ACTION_POINTER_INDEX_SHIFT)
+                : MotionEvent.ACTION_DOWN;
+        boolean handled = dispatchFilteredSubTouchToGame(view, event, action, pointerIndices);
+        subForwardedTouchIds.put(actionPointerId, true);
+        return handled;
+    }
+
+    private boolean forwardSubTouchMoveToGame(View view, MotionEvent event) {
+        int[] pointerIndices = getForwardablePointerIndices(event, true);
+        if (pointerIndices.length == 0) {
+            return true;
+        }
+
+        return dispatchFilteredSubTouchToGame(view, event, MotionEvent.ACTION_MOVE, pointerIndices);
+    }
+
+    private boolean forwardSubTouchUpToGame(View view, MotionEvent event, boolean actionPointerWasVirtual) {
+        int actionPointerId = event.getPointerId(event.getActionIndex());
+        if (actionPointerWasVirtual || !subForwardedTouchIds.get(actionPointerId)) {
+            if (event.getActionMasked() == MotionEvent.ACTION_UP) {
+                subForwardedTouchIds.clear();
+            }
+            return true;
+        }
+
+        int[] pointerIndices = getForwardablePointerIndices(event, true);
+        int filteredActionIndex = indexOfPointerId(event, pointerIndices, actionPointerId);
+        if (filteredActionIndex < 0) {
+            subForwardedTouchIds.delete(actionPointerId);
+            return true;
+        }
+
+        int action = pointerIndices.length == 1
+                ? MotionEvent.ACTION_UP
+                : MotionEvent.ACTION_POINTER_UP |
+                (filteredActionIndex << MotionEvent.ACTION_POINTER_INDEX_SHIFT);
+        boolean handled = dispatchFilteredSubTouchToGame(view, event, action, pointerIndices);
+        subForwardedTouchIds.delete(actionPointerId);
+        if (action == MotionEvent.ACTION_UP) {
+            subForwardedTouchIds.clear();
+        }
+        return handled;
+    }
+
+    private boolean forwardSubTouchCancelToGame(View view, MotionEvent event) {
+        int[] pointerIndices = getForwardablePointerIndices(event, true);
+        subForwardedTouchIds.clear();
+        if (pointerIndices.length == 0) {
+            return true;
+        }
+
+        return dispatchFilteredSubTouchToGame(view, event, MotionEvent.ACTION_CANCEL, pointerIndices);
+    }
+
+    private boolean dispatchFilteredSubTouchToGame(View view,
+                                                   MotionEvent sourceEvent,
+                                                   int action,
+                                                   int[] pointerIndices) {
+        MotionEvent filteredEvent = obtainFilteredSubTouchEvent(sourceEvent, action, pointerIndices);
+        try {
+            return Game.instance.handleMotionEvent(view, filteredEvent);
+        } finally {
+            filteredEvent.recycle();
+        }
+    }
+
+    private MotionEvent obtainFilteredSubTouchEvent(MotionEvent sourceEvent,
+                                                    int action,
+                                                    int[] pointerIndices) {
+        MotionEvent.PointerProperties[] properties =
+                new MotionEvent.PointerProperties[pointerIndices.length];
+        MotionEvent.PointerCoords[] coords =
+                new MotionEvent.PointerCoords[pointerIndices.length];
+
+        for (int i = 0; i < pointerIndices.length; i++) {
+            properties[i] = new MotionEvent.PointerProperties();
+            sourceEvent.getPointerProperties(pointerIndices[i], properties[i]);
+
+            coords[i] = new MotionEvent.PointerCoords();
+            sourceEvent.getPointerCoords(pointerIndices[i], coords[i]);
+        }
+
+        return MotionEvent.obtain(
+                sourceEvent.getDownTime(),
+                sourceEvent.getEventTime(),
+                action,
+                pointerIndices.length,
+                properties,
+                coords,
+                sourceEvent.getMetaState(),
+                sourceEvent.getButtonState(),
+                sourceEvent.getXPrecision(),
+                sourceEvent.getYPrecision(),
+                sourceEvent.getDeviceId(),
+                sourceEvent.getEdgeFlags(),
+                sourceEvent.getSource(),
+                sourceEvent.getFlags());
+    }
+
+    private int[] getForwardablePointerIndices(MotionEvent event, boolean onlyForwarded) {
+        int[] scratch = new int[event.getPointerCount()];
+        int count = 0;
+        for (int i = 0; i < event.getPointerCount(); i++) {
+            int pointerId = event.getPointerId(i);
+            if (subVirtualTouchTargets.get(pointerId) != null) {
+                continue;
+            }
+            if (onlyForwarded && !subForwardedTouchIds.get(pointerId)) {
+                continue;
+            }
+            scratch[count++] = i;
+        }
+
+        int[] pointerIndices = new int[count];
+        System.arraycopy(scratch, 0, pointerIndices, 0, count);
+        return pointerIndices;
+    }
+
+    private int indexOfPointerId(MotionEvent event, int[] pointerIndices, int pointerId) {
+        for (int i = 0; i < pointerIndices.length; i++) {
+            if (event.getPointerId(pointerIndices[i]) == pointerId) {
+                return i;
+            }
+        }
+        return -1;
+    }
+
+    private boolean hasForwardedTouchPointers() {
+        for (int i = 0; i < subForwardedTouchIds.size(); i++) {
+            if (subForwardedTouchIds.valueAt(i)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     @Override
@@ -486,6 +825,7 @@ public class ExternalDisplayControlActivity extends AppCompatActivity implements
         rootLayout.setLayoutParams(new ViewGroup.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT,
                 ViewGroup.LayoutParams.MATCH_PARENT));
+        rootLayout.setMotionEventSplittingEnabled(true);
         rootLayout.setFocusable(true);
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             rootLayout.setFocusedByDefault(true);

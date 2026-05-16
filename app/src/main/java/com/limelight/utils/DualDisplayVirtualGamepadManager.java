@@ -8,7 +8,9 @@ import android.hardware.display.DisplayManager;
 import android.os.Build;
 import android.os.Handler;
 import android.os.Looper;
+import android.util.SparseArray;
 import android.view.Display;
+import android.view.MotionEvent;
 import android.view.View;
 import android.view.ViewGroup;
 
@@ -25,6 +27,7 @@ import com.limelight.Game;
 import com.limelight.LimeLog;
 import com.limelight.R;
 import com.limelight.binding.input.virtual_controller.VirtualController;
+import com.limelight.binding.input.virtual_controller.VirtualControllerElement;
 import com.limelight.ui.ExternalControllerView;
 
 import java.util.List;
@@ -412,6 +415,7 @@ public final class DualDisplayVirtualGamepadManager {
         root.setLayoutParams(new ViewGroup.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT,
                 ViewGroup.LayoutParams.MATCH_PARENT));
+        root.setMotionEventSplittingEnabled(true);
         root.setFocusable(true);
 
         Game game = Game.instance;
@@ -425,6 +429,7 @@ public final class DualDisplayVirtualGamepadManager {
                 game != null ? game.getVirtualControllerInputStateSink() : null);
         virtualController.refreshLayout();
         virtualController.show();
+        installSubVirtualGamepadTouchRouter(root, virtualController);
         LimeLog.info("DualDisplayVirtualGamepadManager.createSubVirtualGamepadView: sub elements=" +
                 virtualController.getElements().size());
         root.post(() -> LimeLog.info(
@@ -433,6 +438,149 @@ public final class DualDisplayVirtualGamepadManager {
                         " subElements=" + virtualController.getElements().size()));
 
         return root;
+    }
+
+    private static void installSubVirtualGamepadTouchRouter(ExternalControllerView root,
+                                                            VirtualController virtualController) {
+        SparseArray<VirtualControllerElement> touchTargets = new SparseArray<>();
+        root.setOnTouchListener((view, event) -> {
+            if (virtualController == null ||
+                    virtualController.getControllerMode() != VirtualController.ControllerMode.Active) {
+                touchTargets.clear();
+                return true;
+            }
+
+            switch (event.getActionMasked()) {
+                case MotionEvent.ACTION_DOWN:
+                case MotionEvent.ACTION_POINTER_DOWN: {
+                    int pointerIndex = event.getActionIndex();
+                    VirtualControllerElement target = findSubVirtualControllerElementAt(
+                            root, virtualController, event.getX(pointerIndex), event.getY(pointerIndex));
+                    if (target != null) {
+                        touchTargets.put(event.getPointerId(pointerIndex), target);
+                        dispatchSubVirtualPointerEvent(root, target, event,
+                                MotionEvent.ACTION_DOWN, pointerIndex);
+                    }
+                    return true;
+                }
+                case MotionEvent.ACTION_MOVE: {
+                    for (int i = touchTargets.size() - 1; i >= 0; i--) {
+                        int pointerId = touchTargets.keyAt(i);
+                        int pointerIndex = event.findPointerIndex(pointerId);
+                        if (pointerIndex < 0) {
+                            touchTargets.removeAt(i);
+                            continue;
+                        }
+
+                        dispatchSubVirtualPointerEvent(root, touchTargets.valueAt(i), event,
+                                MotionEvent.ACTION_MOVE, pointerIndex);
+                    }
+                    return true;
+                }
+                case MotionEvent.ACTION_POINTER_UP:
+                case MotionEvent.ACTION_UP: {
+                    int pointerIndex = event.getActionIndex();
+                    int pointerId = event.getPointerId(pointerIndex);
+                    VirtualControllerElement target = touchTargets.get(pointerId);
+                    if (target != null) {
+                        dispatchSubVirtualPointerEvent(root, target, event,
+                                MotionEvent.ACTION_UP, pointerIndex);
+                        touchTargets.delete(pointerId);
+                    }
+                    if (event.getActionMasked() == MotionEvent.ACTION_UP) {
+                        touchTargets.clear();
+                    }
+                    return true;
+                }
+                case MotionEvent.ACTION_CANCEL: {
+                    for (int i = touchTargets.size() - 1; i >= 0; i--) {
+                        int pointerId = touchTargets.keyAt(i);
+                        int pointerIndex = event.findPointerIndex(pointerId);
+                        if (pointerIndex >= 0) {
+                            dispatchSubVirtualPointerEvent(root, touchTargets.valueAt(i), event,
+                                    MotionEvent.ACTION_CANCEL, pointerIndex);
+                        }
+                    }
+                    touchTargets.clear();
+                    return true;
+                }
+                default:
+                    return true;
+            }
+        });
+    }
+
+    private static VirtualControllerElement findSubVirtualControllerElementAt(ExternalControllerView root,
+                                                                             VirtualController virtualController,
+                                                                             float x, float y) {
+        for (int i = virtualController.getElements().size() - 1; i >= 0; i--) {
+            VirtualControllerElement element = virtualController.getElements().get(i);
+            if (element.getVisibility() != View.VISIBLE) {
+                continue;
+            }
+
+            float[] localPoint = getSubVirtualElementLocalPoint(root, element, x, y);
+            if (localPoint[0] >= 0 && localPoint[1] >= 0 &&
+                    localPoint[0] < element.getWidth() && localPoint[1] < element.getHeight()) {
+                return element;
+            }
+        }
+
+        return null;
+    }
+
+    private static void dispatchSubVirtualPointerEvent(ExternalControllerView root,
+                                                       VirtualControllerElement target,
+                                                       MotionEvent sourceEvent,
+                                                       int action,
+                                                       int pointerIndex) {
+        MotionEvent.PointerProperties[] properties = new MotionEvent.PointerProperties[1];
+        MotionEvent.PointerCoords[] coords = new MotionEvent.PointerCoords[1];
+
+        properties[0] = new MotionEvent.PointerProperties();
+        sourceEvent.getPointerProperties(pointerIndex, properties[0]);
+
+        coords[0] = new MotionEvent.PointerCoords();
+        sourceEvent.getPointerCoords(pointerIndex, coords[0]);
+        float[] localPoint = getSubVirtualElementLocalPoint(root, target, coords[0].x, coords[0].y);
+        coords[0].x = localPoint[0];
+        coords[0].y = localPoint[1];
+
+        MotionEvent pointerEvent = MotionEvent.obtain(
+                sourceEvent.getDownTime(),
+                sourceEvent.getEventTime(),
+                action,
+                1,
+                properties,
+                coords,
+                sourceEvent.getMetaState(),
+                sourceEvent.getButtonState(),
+                sourceEvent.getXPrecision(),
+                sourceEvent.getYPrecision(),
+                sourceEvent.getDeviceId(),
+                sourceEvent.getEdgeFlags(),
+                sourceEvent.getSource(),
+                sourceEvent.getFlags());
+
+        try {
+            target.onTouchEvent(pointerEvent);
+        } finally {
+            pointerEvent.recycle();
+        }
+    }
+
+    private static float[] getSubVirtualElementLocalPoint(ExternalControllerView root,
+                                                          View element,
+                                                          float rootX,
+                                                          float rootY) {
+        int[] rootLocation = new int[2];
+        int[] elementLocation = new int[2];
+        root.getLocationOnScreen(rootLocation);
+        element.getLocationOnScreen(elementLocation);
+        return new float[] {
+                rootLocation[0] + rootX - elementLocation[0],
+                rootLocation[1] + rootY - elementLocation[1]
+        };
     }
 
     private static int getGameDisplayIdSafe(Game game) {
