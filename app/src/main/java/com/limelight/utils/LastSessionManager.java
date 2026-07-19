@@ -51,6 +51,8 @@ public class LastSessionManager {
     public static final String KEY_SERVER_COMMANDS = "stream_server_commands";  // JSON array
 
     // ── UI / input state (future extension) ──────────────────────────────────
+    public static final String KEY_MOUSE_MODE = "ui_mouse_mode";
+    public static final String KEY_MOUSE_CURSOR_VISIBLE = "ui_mouse_cursor_visible";
     // public static final String KEY_MOUSE_SENSITIVITY = "ui_mouse_sensitivity";
     // public static final String KEY_POPUP_VISIBLE     = "ui_popup_visible";
 
@@ -82,6 +84,16 @@ public class LastSessionManager {
         intent.putExtra(Game.EXTRA_UNIQUEID,   p.getString(KEY_UNIQUE_ID, ""));
         intent.putExtra(Game.EXTRA_VDISPLAY,   p.getBoolean(KEY_VDISPLAY, false));
         intent.putExtra(Game.EXTRA_DISPLAY_ID, p.getInt(KEY_DISPLAY_ID,   0));
+
+        // UI state is optional so sessions saved by an older app version continue to
+        // fall back to the user's normal preferences instead of being overwritten.
+        if (p.contains(KEY_MOUSE_MODE)) {
+            intent.putExtra(Game.EXTRA_MOUSE_MODE, p.getInt(KEY_MOUSE_MODE, 0));
+        }
+        if (p.contains(KEY_MOUSE_CURSOR_VISIBLE)) {
+            intent.putExtra(Game.EXTRA_MOUSE_CURSOR_VISIBLE,
+                    p.getBoolean(KEY_MOUSE_CURSOR_VISIBLE, false));
+        }
 
         String certBase64 = p.getString(KEY_SERVER_CERT, null);
         if (certBase64 != null) {

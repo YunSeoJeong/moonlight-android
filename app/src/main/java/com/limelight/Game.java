@@ -324,6 +324,8 @@ public class Game extends AppCompatActivity implements SurfaceHolder.Callback,
     public static final String EXTRA_SERVER_COMMAND_IDS = "ServerCommandIds";
     public static final String EXTRA_SERVER_COMMANDS = "ServerCommands";
     public static final String EXTRA_DISPLAY_ID = "DisplayID";
+    public static final String EXTRA_MOUSE_MODE = "MouseMode";
+    public static final String EXTRA_MOUSE_CURSOR_VISIBLE = "MouseCursorVisible";
     private static final int HOST_RESOLUTION_RESTART_DELAY_MS = 500;
     private static final String HOST_RESOLUTION_STATE_PREFS = "HostResolutionState";
     private static final String HOST_RESOLUTION_STATE_WIDTH_SUFFIX = "_width";
@@ -522,7 +524,10 @@ public class Game extends AppCompatActivity implements SurfaceHolder.Callback,
         }
 
         //光标是否显示
-        cursorVisible = prefConfig.enableMouseLocalCursor;
+        cursorVisible = getIntent().hasExtra(EXTRA_MOUSE_CURSOR_VISIBLE)
+                ? getIntent().getBooleanExtra(EXTRA_MOUSE_CURSOR_VISIBLE,
+                        prefConfig.enableMouseLocalCursor)
+                : prefConfig.enableMouseLocalCursor;
 
         // Listen for non-touch events on the game surface
         streamContainer = findViewById(R.id.streamContainer);
@@ -2296,6 +2301,7 @@ public class Game extends AppCompatActivity implements SurfaceHolder.Callback,
                         } else {
                             inputCaptureProvider.hideCursor();
                         }
+                        saveMouseStateForReconnect();
                         break;
 
                     default:
@@ -4979,6 +4985,13 @@ public class Game extends AppCompatActivity implements SurfaceHolder.Callback,
             savedMouseModeIndex = 0;
         }
 
+        if (getIntent().hasExtra(EXTRA_MOUSE_MODE)) {
+            int sessionMouseMode = getIntent().getIntExtra(EXTRA_MOUSE_MODE, savedMouseModeIndex);
+            if (sessionMouseMode >= 0 && sessionMouseMode < mouseModes.length) {
+                savedMouseModeIndex = sessionMouseMode;
+            }
+        }
+
         String savedMouseModeString = (savedMouseModeIndex >= 0 && savedMouseModeIndex < mouseModes.length)
                 ? mouseModes[savedMouseModeIndex]
                 : null;
@@ -5069,6 +5082,7 @@ public class Game extends AppCompatActivity implements SurfaceHolder.Callback,
                                     .putString("mouse_mode_list", String.valueOf(selected.index))
                                     .apply();
                         }
+                        saveMouseStateForReconnect();
                     }
                 })
                 .create()
@@ -5087,6 +5101,7 @@ public class Game extends AppCompatActivity implements SurfaceHolder.Callback,
         } else {
             inputCaptureProvider.hideCursor();
         }
+        saveMouseStateForReconnect();
     }
 
     private void applyMouseMode(int mode) {
@@ -5160,6 +5175,18 @@ public class Game extends AppCompatActivity implements SurfaceHolder.Callback,
         prefConfig.enableTouchSensitivity = !prefConfig.enableTouchSensitivity;
     }
 
+    /** Saves temporary mouse choices for reconnection without changing global preferences. */
+    private void saveMouseStateForReconnect() {
+        if (!connected || !LastSessionManager.hasSession(this)) {
+            return;
+        }
+
+        getSharedPreferences(LastSessionManager.PREFS_NAME, MODE_PRIVATE).edit()
+                .putInt(LastSessionManager.KEY_MOUSE_MODE, currentMouseMode)
+                .putBoolean(LastSessionManager.KEY_MOUSE_CURSOR_VISIBLE, cursorVisible)
+                .apply();
+    }
+
     private void saveLastSession() {
         LimeLog.info("Game.saveLastSession: saving session host=" + host
                 + " appId=" + appId + " appName=" + appName);
@@ -5178,6 +5205,8 @@ public class Game extends AppCompatActivity implements SurfaceHolder.Callback,
         ed.putString (LastSessionManager.KEY_UNIQUE_ID,       uniqueId);
         ed.putBoolean(LastSessionManager.KEY_VDISPLAY,        vDisplay);
         ed.putInt    (LastSessionManager.KEY_DISPLAY_ID,      getIntent().getIntExtra(EXTRA_DISPLAY_ID, 0));
+        ed.putInt    (LastSessionManager.KEY_MOUSE_MODE,       currentMouseMode);
+        ed.putBoolean(LastSessionManager.KEY_MOUSE_CURSOR_VISIBLE, cursorVisible);
 
         if (serverCert != null) {
             try {
