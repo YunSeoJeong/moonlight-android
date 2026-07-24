@@ -18,23 +18,59 @@ import androidx.preference.PreferenceManager;
 import androidx.test.core.app.ApplicationProvider;
 
 import com.limelight.binding.input.ControllerHandler;
+import com.limelight.preferences.PreferenceConfiguration;
 
 import org.junit.After;
 import org.junit.Test;
 import org.junit.runner.RunWith;
+import org.json.JSONObject;
 import org.robolectric.RobolectricTestRunner;
+
+import java.lang.reflect.Method;
 
 @RunWith(RobolectricTestRunner.class)
 public class WebGamepadLayoutLoaderTest {
     @After
     public void tearDown() {
         Context context = ApplicationProvider.getApplicationContext();
+        FoldChordSession.reset();
         WebGamepadLayoutLoader.clearImportedLayout(context);
         PreferenceManager.getDefaultSharedPreferences(context)
                 .edit()
                 .remove("seekbar_virtual_gamepad_anti_deadzone")
                 .remove("checkbox_hide_osc_settings_button")
                 .apply();
+    }
+
+    @Test
+    public void foldChordInputTypeCreatesNamedChordButton() throws Exception {
+        Context context = ApplicationProvider.getApplicationContext();
+        FrameLayout frame = new FrameLayout(context);
+        frame.layout(0, 0, 100, 100);
+        VirtualController controller =
+                new VirtualController(mock(ControllerHandler.class), frame, context);
+
+        JSONObject component = new JSONObject("{\n" +
+                "  \"id\": \"foldchord-lr\",\n" +
+                "  \"type\": \"button\",\n" +
+                "  \"label\": \"LR\",\n" +
+                "  \"runtime\": {\n" +
+                "    \"inputtype\": \"foldchord\",\n" +
+                "    \"binding\": {\"chord\": \"LR\"}\n" +
+                "  }\n" +
+                "}");
+        Method createElement = WebGamepadLayoutLoader.class.getDeclaredMethod(
+                "createElement", VirtualController.class, Context.class,
+                JSONObject.class, PreferenceConfiguration.class);
+        createElement.setAccessible(true);
+        VirtualControllerElement element = (VirtualControllerElement) createElement.invoke(
+                null, controller, context, component, new PreferenceConfiguration());
+
+        assertNotNull(element);
+        element.onTouchEvent(MotionEvent.obtain(0, 1_000,
+                MotionEvent.ACTION_DOWN, 50, 50, 0));
+        element.onTouchEvent(MotionEvent.obtain(0, 1_070,
+                MotionEvent.ACTION_UP, 50, 50, 0));
     }
 
     @Test

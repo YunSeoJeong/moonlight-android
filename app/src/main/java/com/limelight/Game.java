@@ -22,6 +22,7 @@ import com.limelight.binding.input.driver.UsbDriverService;
 import com.limelight.binding.input.evdev.EvdevListener;
 import com.limelight.binding.input.touch.TouchContext;
 import com.limelight.binding.input.touch.TrackpadContext;
+import com.limelight.binding.input.virtual_controller.FoldChordSession;
 import com.limelight.binding.input.virtual_controller.VirtualController;
 import com.limelight.binding.input.virtual_controller.VirtualControllerStateAggregator;
 import com.limelight.binding.input.virtual_controller.keyboard.KeyBoardController;
@@ -1879,6 +1880,7 @@ public class Game extends AppCompatActivity implements SurfaceHolder.Callback,
         if (destroyingCurrentInstance) {
             LimeLog.info("Game.onDestroy: closing dual-screen virtual gamepad manager");
             DualDisplayVirtualGamepadManager.close();
+            FoldChordSession.reset();
             instance = null;
         }
         if (virtualControllerStateAggregator != null) {
@@ -2571,6 +2573,29 @@ public class Game extends AppCompatActivity implements SurfaceHolder.Callback,
                 conn.sendKeyboardInput(key, KeyboardPacket.KEY_UP, modifier[0], (byte) 0);
             }
         }), GameMenu.KEY_UP_DELAY);
+    }
+
+    public void sendFoldChordText(String text) {
+        if (!connected || conn == null || text == null || text.isEmpty()) {
+            return;
+        }
+        conn.sendUtf8Text(text);
+    }
+
+    public void sendFoldChordKey(int androidKeyCode, byte modifiers, int repeatCount) {
+        if (!connected || conn == null || keyboardTranslator == null) {
+            return;
+        }
+
+        short translated = keyboardTranslator.translate(androidKeyCode, 0, -1);
+        if (translated == 0) {
+            return;
+        }
+
+        for (int repeat = 0; repeat < Math.max(1, repeatCount); repeat++) {
+            conn.sendKeyboardInput(translated, KeyboardPacket.KEY_DOWN, modifiers, (byte) 0);
+            conn.sendKeyboardInput(translated, KeyboardPacket.KEY_UP, modifiers, (byte) 0);
+        }
     }
 
     public boolean handleFocusChange(boolean hasFocus) {

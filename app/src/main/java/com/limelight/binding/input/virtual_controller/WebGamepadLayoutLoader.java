@@ -6,6 +6,7 @@ import android.graphics.Color;
 import android.graphics.Paint;
 import android.graphics.RectF;
 import android.util.DisplayMetrics;
+import android.view.HapticFeedbackConstants;
 import android.view.KeyEvent;
 import android.view.MotionEvent;
 import android.view.View;
@@ -691,7 +692,10 @@ public class WebGamepadLayoutLoader {
 
         String type = component.optString("type", component.optString("originalType", "button"));
         String originalType = component.optString("originalType", type);
-        String inputType = runtime.optString("inputType", component.optString("inputType", "controller"));
+        String inputType = runtime.optString("inputType",
+                runtime.optString("inputtype",
+                        component.optString("inputType",
+                                component.optString("inputtype", "controller"))));
         String label = component.optString("label", "");
         JSONObject style = component.optJSONObject("style");
         String shape = style != null ? style.optString("shape", component.optString("shape", "circle"))
@@ -699,6 +703,19 @@ public class WebGamepadLayoutLoader {
 
         int elementId = component.optString("id", type + ":" + label).hashCode();
         WebElement element;
+
+        if ("foldchord".equals(normalize(inputType))) {
+            int foldChordBit = parseFoldChordBinding(component, runtime, label);
+            if (foldChordBit == 0) {
+                LimeLog.warning("WebGamepadLayoutLoader: ignoring FoldChord element with invalid binding label=" +
+                        label + " binding=" + runtime.opt("binding"));
+                return null;
+            }
+            element = new WebButton(controller, context, elementId, inputType, runtime,
+                    label, shape, false, foldChordBit);
+            applyStyle(element, style);
+            return element;
+        }
 
         if ("mouseScroll".equals(type) || "mouseScroll".equals(originalType) ||
                 "mouseScroll".equals(runtime.optString("role"))) {
@@ -878,6 +895,34 @@ public class WebGamepadLayoutLoader {
             default:
                 return 0;
         }
+    }
+
+    private static int parseFoldChordBinding(JSONObject component, JSONObject runtime,
+                                             String label) {
+        String value = readFoldChordBindingValue(runtime);
+        if (value.isEmpty()) {
+            value = readFoldChordBindingValue(component);
+        }
+        if (value.isEmpty()) {
+            value = runtime.optString("chord",
+                    runtime.optString("key",
+                            component.optString("chord", component.optString("key", label))));
+        }
+        return FoldChordSession.parseBinding(value);
+    }
+
+    private static String readFoldChordBindingValue(JSONObject owner) {
+        JSONObject binding = owner.optJSONObject("binding");
+        if (binding != null) {
+            return binding.optString("chord",
+                    binding.optString("key",
+                            binding.optString("button", binding.optString("code", ""))));
+        }
+        Object rawBinding = owner.opt("binding");
+        if (rawBinding != null && rawBinding != JSONObject.NULL) {
+            return String.valueOf(rawBinding);
+        }
+        return "";
     }
 
     private static int parseAndroidKey(String value) {
@@ -1356,15 +1401,28 @@ public class WebGamepadLayoutLoader {
         private final String inputType;
         private final JSONObject runtime;
         private final boolean trigger;
+        private final int foldChordBit;
+        private final long foldChordToken;
         private boolean toggled;
         private boolean active;
 
         WebButton(VirtualController controller, Context context, int elementId, String inputType,
                   JSONObject runtime, String label, String shape, boolean trigger) {
+            this(controller, context, elementId, inputType, runtime, label, shape, trigger, 0);
+        }
+
+        WebButton(VirtualController controller, Context context, int elementId, String inputType,
+                  JSONObject runtime, String label, String shape, boolean trigger,
+                  int foldChordBit) {
             super(controller, context, elementId, label, shape);
             this.inputType = inputType;
             this.runtime = runtime;
             this.trigger = trigger;
+            this.foldChordBit = foldChordBit;
+            this.foldChordToken = foldChordBit == 0 ? 0L : FoldChordSession.createInputToken();
+            if (foldChordBit != 0) {
+                setHapticFeedbackEnabled(true);
+            }
         }
 
         @Override
@@ -1378,16 +1436,20 @@ public class WebGamepadLayoutLoader {
             switch (event.getActionMasked()) {
                 case MotionEvent.ACTION_DOWN:
                     forwardMousePosition(event);
-                    handleDown();
+                    handleDown(event.getEventTime());
                     invalidate();
                     return true;
                 case MotionEvent.ACTION_MOVE:
                     forwardMousePosition(event);
                     return true;
-                case MotionEvent.ACTION_CANCEL:
                 case MotionEvent.ACTION_UP:
                     forwardMousePosition(event);
-                    handleUp();
+                    handleUp(event.getEventTime());
+                    invalidate();
+                    return true;
+                case MotionEvent.ACTION_CANCEL:
+                    forwardMousePosition(event);
+                    handleCancel(event.getEventTime());
                     invalidate();
                     return true;
                 default:
@@ -1395,7 +1457,17 @@ public class WebGamepadLayoutLoader {
             }
         }
 
-        private void handleDown() {
+        private void handleDown(long eventTime) {
+            if (foldChordBit != 0) {
+                if (!active) {
+                    active = true;
+                    setPressed(true);
+                    FoldChordSession.press(foldChordToken, foldChordBit, eventTime);
+                    performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP);
+                }
+                return;
+            }
+
             String behavior = runtime.optString("behavior", "hold");
             if ("toggle".equals(behavior)) {
                 toggled = !toggled;
@@ -1420,7 +1492,16 @@ public class WebGamepadLayoutLoader {
             }
         }
 
-        private void handleUp() {
+        private void handleUp(long eventTime) {
+            if (foldChordBit != 0) {
+                if (active) {
+                    FoldChordSession.release(foldChordToken, eventTime);
+                }
+                active = false;
+                setPressed(false);
+                return;
+            }
+
             String behavior = runtime.optString("behavior", "hold");
             if ("toggle".equals(behavior)) {
                 return;
@@ -1430,6 +1511,26 @@ public class WebGamepadLayoutLoader {
             }
             active = false;
             setPressed(false);
+        }
+
+        private void handleCancel(long eventTime) {
+            if (foldChordBit != 0 && active) {
+                FoldChordSession.cancel(foldChordToken);
+                active = false;
+                setPressed(false);
+            } else {
+                handleUp(eventTime);
+            }
+        }
+
+        @Override
+        protected void onDetachedFromWindow() {
+            if (foldChordBit != 0 && active) {
+                FoldChordSession.cancel(foldChordToken);
+                active = false;
+                setPressed(false);
+            }
+            super.onDetachedFromWindow();
         }
 
         private void apply(boolean down) {
