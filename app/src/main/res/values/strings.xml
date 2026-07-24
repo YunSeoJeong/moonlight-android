@@ -298,6 +298,8 @@
     <string name="title_virtual_gamepad_layout_list_activity">Virtual Gamepads</string>
     <string name="virtual_gamepad_layout_active">Active</string>
     <string name="virtual_gamepad_layout_inactive">Inactive</string>
+    <string name="virtual_gamepad_layout_built_in">Built-in gamepad</string>
+    <string name="summary_profile_virtual_gamepad_layout">Selected for this profile: %s</string>
     <string name="virtual_gamepad_layout_activate">Activate</string>
     <string name="virtual_gamepad_layout_activated">Activated \'%s\'</string>
     <string name="virtual_gamepad_layout_delete">Delete</string>

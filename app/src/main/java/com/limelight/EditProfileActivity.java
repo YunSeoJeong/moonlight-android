@@ -1,5 +1,7 @@
 package com.limelight;
 
+import android.app.Activity;
+import android.content.Intent;
 import android.content.SharedPreferences;
 import android.os.Bundle;
 import android.view.LayoutInflater;
@@ -17,8 +19,10 @@ import androidx.preference.Preference;
 import androidx.preference.PreferenceGroup;
 import androidx.preference.PreferenceManager;
 
+import com.limelight.binding.input.virtual_controller.WebGamepadLayoutLoader;
 import com.limelight.preferences.PreferenceConfiguration;
 import com.limelight.preferences.StreamSettings;
+import com.limelight.preferences.VirtualGamepadLayoutListActivity;
 import com.limelight.profiles.ProfilesManager;
 import com.limelight.profiles.SettingsProfile;
 import com.limelight.utils.UiHelper;
@@ -72,6 +76,18 @@ public class EditProfileActivity extends AppCompatActivity {
             // Creating new profile
             setTitle(getString(R.string.profile_manager_new_profile));
             inMemoryPrefs = new InMemorySharedPreferences(PreferenceManager.getDefaultSharedPreferences(this).getAll());
+        }
+
+        // The global virtual gamepad selection lives outside the default preference file.
+        // Pin its current value into the profile so later global changes don't affect it.
+        if (!inMemoryPrefs.contains(WebGamepadLayoutLoader.PROFILE_LAYOUT_PREF)) {
+            String selectedLayoutId = WebGamepadLayoutLoader.getGlobalSelectedLayoutId(this);
+            inMemoryPrefs.edit().putString(
+                    WebGamepadLayoutLoader.PROFILE_LAYOUT_PREF,
+                    selectedLayoutId != null
+                            ? selectedLayoutId
+                            : WebGamepadLayoutLoader.BUILT_IN_LAYOUT_ID
+            ).apply();
         }
 
         prefsFragment = new ProfilePreferenceFragment(this, inMemoryPrefs);
@@ -193,6 +209,8 @@ public class EditProfileActivity extends AppCompatActivity {
     }
 
     public static class ProfilePreferenceFragment extends StreamSettings.SettingsFragment {
+        private static final int SELECT_VIRTUAL_GAMEPAD_REQUEST_CODE = 2002;
+
         private static class InMemoryPreferenceDataStore extends androidx.preference.PreferenceDataStore {
             private final SharedPreferences prefs;
             InMemoryPreferenceDataStore(SharedPreferences prefs) {
@@ -273,6 +291,24 @@ public class EditProfileActivity extends AppCompatActivity {
 
             Preference prefScreen = getPreferenceScreen();
 
+            Preference gamepadLayouts = findPreference("manage_virtual_gamepad_layouts");
+            if (gamepadLayouts != null) {
+                updateVirtualGamepadSummary(gamepadLayouts);
+                gamepadLayouts.setOnPreferenceClickListener(preference -> {
+                    Intent intent = new Intent(requireActivity(),
+                            VirtualGamepadLayoutListActivity.class);
+                    intent.putExtra(VirtualGamepadLayoutListActivity.EXTRA_PROFILE_SELECTION, true);
+                    intent.putExtra(
+                            VirtualGamepadLayoutListActivity.EXTRA_SELECTED_LAYOUT_ID,
+                            memPrefs.getString(
+                                    WebGamepadLayoutLoader.PROFILE_LAYOUT_PREF,
+                                    WebGamepadLayoutLoader.BUILT_IN_LAYOUT_ID)
+                    );
+                    startActivityForResult(intent, SELECT_VIRTUAL_GAMEPAD_REQUEST_CODE);
+                    return true;
+                });
+            }
+
             // FIXME:
             // We can't separate keyboard files and special button files in profiles
             // Shitty code written by previous implementations, too much to fix
@@ -304,6 +340,44 @@ public class EditProfileActivity extends AppCompatActivity {
                     memPrefs.getAll()
             );
             highlightPreferences(prefScreen, patch.keySet());
+        }
+
+        @Override
+        public void onActivityResult(int requestCode, int resultCode, Intent data) {
+            if (requestCode == SELECT_VIRTUAL_GAMEPAD_REQUEST_CODE) {
+                if (resultCode == Activity.RESULT_OK && data != null &&
+                        data.hasExtra(VirtualGamepadLayoutListActivity.EXTRA_RESULT_LAYOUT_ID)) {
+                    String layoutId = data.getStringExtra(
+                            VirtualGamepadLayoutListActivity.EXTRA_RESULT_LAYOUT_ID);
+                    if (layoutId != null) {
+                        getPrefs().edit()
+                                .putString(WebGamepadLayoutLoader.PROFILE_LAYOUT_PREF, layoutId)
+                                .apply();
+                        Preference preference = findPreference("manage_virtual_gamepad_layouts");
+                        if (preference != null) {
+                            updateVirtualGamepadSummary(preference);
+                            if (!preference.getTitle().toString().startsWith("*")) {
+                                preference.setTitle("*" + preference.getTitle());
+                            }
+                        }
+                    }
+                }
+                return;
+            }
+            super.onActivityResult(requestCode, resultCode, data);
+        }
+
+        private void updateVirtualGamepadSummary(Preference preference) {
+            String layoutId = getPrefs().getString(
+                    WebGamepadLayoutLoader.PROFILE_LAYOUT_PREF,
+                    WebGamepadLayoutLoader.BUILT_IN_LAYOUT_ID);
+            String layoutName = WebGamepadLayoutLoader.getLayoutDisplayName(
+                    requireActivity(), layoutId);
+            if (layoutName == null) {
+                layoutName = getString(R.string.virtual_gamepad_layout_built_in);
+            }
+            preference.setSummary(getString(
+                    R.string.summary_profile_virtual_gamepad_layout, layoutName));
         }
 
         @Override

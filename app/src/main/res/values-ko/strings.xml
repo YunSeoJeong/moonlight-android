@@ -98,6 +98,8 @@
     <string name="title_checkbox_xb1_driver">Xbox 360/One 컨트롤러 드라이버</string>
     <string name="summary_checkbox_xb1_driver">네이티브 Xbox 컨트롤러 지원 없이 빌드인 USB드라이버를 활성화합니다</string>
     <string name="category_on_screen_controls_settings">화면 상의 컨트롤 설정</string>
+    <string name="virtual_gamepad_layout_built_in">기본 내장 게임패드</string>
+    <string name="summary_profile_virtual_gamepad_layout">이 프로필에서 사용할 게임패드: %s</string>
     <string name="title_checkbox_show_onscreen_controls">화면 위에 컨트롤러 표시</string>
     <string name="summary_checkbox_show_onscreen_controls">터치스크린에 가상 컨트롤러 오버레이를 표시합니다</string>
     <string name="category_ui_settings">UI 설정</string>

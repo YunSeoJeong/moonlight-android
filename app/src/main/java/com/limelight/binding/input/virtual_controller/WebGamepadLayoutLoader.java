@@ -17,6 +17,7 @@ import com.limelight.LimeLog;
 import com.limelight.binding.input.evdev.EvdevListener;
 import com.limelight.nvstream.input.ControllerPacket;
 import com.limelight.preferences.PreferenceConfiguration;
+import com.limelight.profiles.ProfilesManager;
 
 import org.json.JSONArray;
 import org.json.JSONException;
@@ -41,6 +42,8 @@ public class WebGamepadLayoutLoader {
     private static final String IMPORTED_LAYOUTS_DIR = "gamepad_layouts";
     private static final String PREF_NAME = "gamepad_layouts";
     private static final String ACTIVE_LAYOUT_PREF = "active_layout";
+    public static final String PROFILE_LAYOUT_PREF = "virtual_gamepad_layout_id";
+    public static final String BUILT_IN_LAYOUT_ID = "__built_in__";
     private static final int DEFAULT_LAYER = 1;
 
     public static class ImportedLayout {
@@ -48,7 +51,7 @@ public class WebGamepadLayoutLoader {
         public final String name;
         public final boolean active;
 
-        ImportedLayout(String id, String name, boolean active) {
+        public ImportedLayout(String id, String name, boolean active) {
             this.id = id;
             this.name = name;
             this.active = active;
@@ -60,6 +63,11 @@ public class WebGamepadLayoutLoader {
     }
 
     public static ImportedLayout saveImportedLayout(Context context, String json, String suggestedName) throws JSONException {
+        return saveImportedLayout(context, json, suggestedName, true);
+    }
+
+    public static ImportedLayout saveImportedLayout(Context context, String json, String suggestedName,
+                                                     boolean activate) throws JSONException {
         JSONObject root = new JSONObject(json);
         JSONArray resolutions = root.optJSONArray("resolutions");
         if (resolutions == null || resolutions.length() == 0) {
@@ -79,12 +87,17 @@ public class WebGamepadLayoutLoader {
             throw new JSONException(e.getMessage());
         }
 
-        setActiveLayout(context, id);
-        return new ImportedLayout(id, displayName, true);
+        if (activate) {
+            setActiveLayout(context, id);
+        }
+        return new ImportedLayout(id, displayName, activate);
     }
 
     public static boolean clearImportedLayout(Context context) {
-        String active = getActiveLayoutId(context);
+        String active = getGlobalSelectedLayoutId(context);
+        if (BUILT_IN_LAYOUT_ID.equals(active)) {
+            return true;
+        }
         if (active == null) {
             File file = getImportedLayoutFile(context);
             return !file.exists() || file.delete();
@@ -97,11 +110,12 @@ public class WebGamepadLayoutLoader {
 
     public static List<ImportedLayout> listImportedLayouts(Context context) {
         List<ImportedLayout> layouts = new ArrayList<>();
-        String active = getActiveLayoutId(context);
+        String active = getGlobalSelectedLayoutId(context);
 
         File legacy = getImportedLayoutFile(context);
         if (legacy.exists()) {
-            layouts.add(new ImportedLayout(IMPORTED_FILE_NAME, getLayoutName(legacy), active == null));
+            layouts.add(new ImportedLayout(IMPORTED_FILE_NAME, getLayoutName(legacy),
+                    IMPORTED_FILE_NAME.equals(active)));
         }
 
         File dir = getImportedLayoutsDir(context);
@@ -131,9 +145,12 @@ public class WebGamepadLayoutLoader {
     }
 
     public static boolean deleteImportedLayout(Context context, String id) {
+        if (BUILT_IN_LAYOUT_ID.equals(id)) {
+            return false;
+        }
         File file = getLayoutFile(context, id);
         boolean removed = !file.exists() || file.delete();
-        if (id != null && id.equals(getActiveLayoutId(context))) {
+        if (id != null && id.equals(getGlobalSelectedLayoutId(context))) {
             clearActiveLayout(context);
         }
         return removed;
@@ -250,13 +267,46 @@ public class WebGamepadLayoutLoader {
         return new File(context.getFilesDir(), IMPORTED_LAYOUTS_DIR);
     }
 
-    private static String getActiveLayoutId(Context context) {
+    public static String getGlobalSelectedLayoutId(Context context) {
         SharedPreferences prefs = context.getSharedPreferences(PREF_NAME, Activity.MODE_PRIVATE);
         String active = prefs.getString(ACTIVE_LAYOUT_PREF, null);
+        if (BUILT_IN_LAYOUT_ID.equals(active)) {
+            return active;
+        }
         if (active != null && getLayoutFile(context, active).exists()) {
             return active;
         }
+        if (getImportedLayoutFile(context).exists()) {
+            return IMPORTED_FILE_NAME;
+        }
         return null;
+    }
+
+    public static String getSelectedLayoutId(Context context) {
+        SharedPreferences prefs = ProfilesManager.getInstance()
+                .getOverlayingSharedPreferences(context);
+        if (prefs.contains(PROFILE_LAYOUT_PREF)) {
+            String selected = prefs.getString(PROFILE_LAYOUT_PREF, BUILT_IN_LAYOUT_ID);
+            if (BUILT_IN_LAYOUT_ID.equals(selected)) {
+                return selected;
+            }
+            if (selected != null && getLayoutFile(context, selected).exists()) {
+                return selected;
+            }
+
+            // A layout explicitly selected by this profile was removed. Do not silently
+            // switch the profile to the global layout, because that would couple profiles again.
+            return BUILT_IN_LAYOUT_ID;
+        }
+        return getGlobalSelectedLayoutId(context);
+    }
+
+    public static String getLayoutDisplayName(Context context, String id) {
+        if (BUILT_IN_LAYOUT_ID.equals(id) || id == null) {
+            return null;
+        }
+        File file = getLayoutFile(context, id);
+        return file.exists() ? getLayoutName(file) : null;
     }
 
     private static File getLayoutFile(Context context, String id) {
@@ -267,7 +317,10 @@ public class WebGamepadLayoutLoader {
     }
 
     private static String readLayout(Context context) {
-        String active = getActiveLayoutId(context);
+        String active = getSelectedLayoutId(context);
+        if (BUILT_IN_LAYOUT_ID.equals(active)) {
+            return readAsset(context);
+        }
         if (active != null) {
             String imported = readFile(getLayoutFile(context, active));
             if (imported != null && !imported.trim().isEmpty()) {

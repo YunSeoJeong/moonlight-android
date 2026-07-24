@@ -31,16 +31,41 @@ import java.util.List;
 
 public class VirtualGamepadLayoutListActivity extends AppCompatActivity {
     private static final int READ_REQUEST_GAMEPAD_LAYOUT_CODE = 2001;
+    public static final String EXTRA_PROFILE_SELECTION = "profileSelection";
+    public static final String EXTRA_SELECTED_LAYOUT_ID = "selectedLayoutId";
+    public static final String EXTRA_RESULT_LAYOUT_ID = "resultLayoutId";
+    private static final String STATE_PROFILE_SELECTION_CHANGED = "profileSelectionChanged";
 
     private final List<WebGamepadLayoutLoader.ImportedLayout> layouts = new ArrayList<>();
     private LayoutAdapter adapter;
     private RecyclerView recyclerView;
     private View emptyState;
+    private boolean profileSelection;
+    private boolean profileSelectionChanged;
+    private String selectedLayoutId;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_virtual_gamepad_layout_list);
+
+        profileSelection = getIntent().getBooleanExtra(EXTRA_PROFILE_SELECTION, false);
+        if (savedInstanceState != null) {
+            selectedLayoutId = savedInstanceState.getString(EXTRA_SELECTED_LAYOUT_ID);
+            profileSelectionChanged =
+                    savedInstanceState.getBoolean(STATE_PROFILE_SELECTION_CHANGED, false);
+        } else if (profileSelection) {
+            selectedLayoutId = getIntent().getStringExtra(EXTRA_SELECTED_LAYOUT_ID);
+        }
+        if (selectedLayoutId == null) {
+            selectedLayoutId = WebGamepadLayoutLoader.BUILT_IN_LAYOUT_ID;
+        } else if (!WebGamepadLayoutLoader.BUILT_IN_LAYOUT_ID.equals(selectedLayoutId) &&
+                WebGamepadLayoutLoader.getLayoutDisplayName(this, selectedLayoutId) == null) {
+            selectedLayoutId = WebGamepadLayoutLoader.BUILT_IN_LAYOUT_ID;
+        }
+        if (profileSelection && profileSelectionChanged) {
+            setProfileSelectionResult();
+        }
 
         recyclerView = findViewById(R.id.gamepadLayoutRecyclerView);
         recyclerView.setLayoutManager(new LinearLayoutManager(this));
@@ -65,7 +90,22 @@ public class VirtualGamepadLayoutListActivity extends AppCompatActivity {
 
     private void reloadLayouts() {
         layouts.clear();
-        layouts.addAll(WebGamepadLayoutLoader.listImportedLayouts(this));
+        String activeId = profileSelection
+                ? selectedLayoutId
+                : WebGamepadLayoutLoader.getGlobalSelectedLayoutId(this);
+        if (activeId == null) {
+            activeId = WebGamepadLayoutLoader.BUILT_IN_LAYOUT_ID;
+        }
+
+        layouts.add(new WebGamepadLayoutLoader.ImportedLayout(
+                WebGamepadLayoutLoader.BUILT_IN_LAYOUT_ID,
+                getString(R.string.virtual_gamepad_layout_built_in),
+                WebGamepadLayoutLoader.BUILT_IN_LAYOUT_ID.equals(activeId)));
+        for (WebGamepadLayoutLoader.ImportedLayout layout :
+                WebGamepadLayoutLoader.listImportedLayouts(this)) {
+            layouts.add(new WebGamepadLayoutLoader.ImportedLayout(
+                    layout.id, layout.name, layout.id.equals(activeId)));
+        }
         adapter.notifyDataSetChanged();
         updateEmptyState();
     }
@@ -94,7 +134,12 @@ public class VirtualGamepadLayoutListActivity extends AppCompatActivity {
                 return;
             }
 
-            WebGamepadLayoutLoader.saveImportedLayout(this, json, getDisplayName(uri));
+            WebGamepadLayoutLoader.ImportedLayout imported =
+                    WebGamepadLayoutLoader.saveImportedLayout(
+                            this, json, getDisplayName(uri), !profileSelection);
+            if (profileSelection) {
+                selectForProfile(imported.id);
+            }
             Toast.makeText(this, getString(R.string.pref_import_success), Toast.LENGTH_SHORT).show();
             reloadLayouts();
         } catch (Exception e) {
@@ -113,6 +158,25 @@ public class VirtualGamepadLayoutListActivity extends AppCompatActivity {
         } catch (Exception ignored) {
         }
         return null;
+    }
+
+    private void selectForProfile(String layoutId) {
+        selectedLayoutId = layoutId;
+        profileSelectionChanged = true;
+        setProfileSelectionResult();
+    }
+
+    private void setProfileSelectionResult() {
+        Intent result = new Intent();
+        result.putExtra(EXTRA_RESULT_LAYOUT_ID, selectedLayoutId);
+        setResult(Activity.RESULT_OK, result);
+    }
+
+    @Override
+    protected void onSaveInstanceState(@NonNull Bundle outState) {
+        super.onSaveInstanceState(outState);
+        outState.putString(EXTRA_SELECTED_LAYOUT_ID, selectedLayoutId);
+        outState.putBoolean(STATE_PROFILE_SELECTION_CHANGED, profileSelectionChanged);
     }
 
     private class LayoutAdapter extends RecyclerView.Adapter<LayoutAdapter.ViewHolder> {
@@ -135,19 +199,29 @@ public class VirtualGamepadLayoutListActivity extends AppCompatActivity {
             holder.activateButton.setAlpha(layout.active ? 0.35f : 1.0f);
 
             holder.activateButton.setOnClickListener(v -> {
-                WebGamepadLayoutLoader.setActiveLayout(VirtualGamepadLayoutListActivity.this, layout.id);
+                if (profileSelection) {
+                    selectForProfile(layout.id);
+                } else {
+                    WebGamepadLayoutLoader.setActiveLayout(
+                            VirtualGamepadLayoutListActivity.this, layout.id);
+                }
                 Toast.makeText(VirtualGamepadLayoutListActivity.this,
                         getString(R.string.virtual_gamepad_layout_activated, layout.name),
                         Toast.LENGTH_SHORT).show();
                 reloadLayouts();
             });
 
+            boolean builtIn = WebGamepadLayoutLoader.BUILT_IN_LAYOUT_ID.equals(layout.id);
+            holder.deleteButton.setVisibility(builtIn ? View.GONE : View.VISIBLE);
             holder.deleteButton.setOnClickListener(v ->
                     new AlertDialog.Builder(VirtualGamepadLayoutListActivity.this)
                             .setTitle(R.string.virtual_gamepad_layout_delete)
                             .setMessage(getString(R.string.virtual_gamepad_layout_delete_confirm, layout.name))
                             .setPositiveButton(R.string.virtual_gamepad_layout_delete, (dialog, which) -> {
                                 if (WebGamepadLayoutLoader.deleteImportedLayout(VirtualGamepadLayoutListActivity.this, layout.id)) {
+                                    if (profileSelection && layout.id.equals(selectedLayoutId)) {
+                                        selectForProfile(WebGamepadLayoutLoader.BUILT_IN_LAYOUT_ID);
+                                    }
                                     Toast.makeText(VirtualGamepadLayoutListActivity.this,
                                             getString(R.string.virtual_gamepad_layout_deleted, layout.name),
                                             Toast.LENGTH_SHORT).show();
