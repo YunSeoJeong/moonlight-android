@@ -546,7 +546,6 @@ public class KeyBoardControllerConfigurationLoader {
             throw new RuntimeException(e);
         }
 
-        controller.setOpacity(config.oscOpacity);
     }
 
     public static void saveProfile(final KeyBoardController controller,

@@ -38,6 +38,7 @@ public class WebGamepadLayoutLoaderTest {
         PreferenceManager.getDefaultSharedPreferences(context)
                 .edit()
                 .remove("seekbar_virtual_gamepad_anti_deadzone")
+                .remove("seekbar_osc_opacity")
                 .remove("checkbox_hide_osc_settings_button")
                 .apply();
     }
@@ -71,6 +72,39 @@ public class WebGamepadLayoutLoaderTest {
                 MotionEvent.ACTION_DOWN, 50, 50, 0));
         element.onTouchEvent(MotionEvent.obtain(0, 1_070,
                 MotionEvent.ACTION_UP, 50, 50, 0));
+    }
+
+    @Test
+    public void componentOpacitySupportsStyleAndFlatFields() throws Exception {
+        Context context = ApplicationProvider.getApplicationContext();
+        FrameLayout frame = new FrameLayout(context);
+        frame.layout(0, 0, 100, 100);
+        VirtualController controller =
+                new VirtualController(mock(ControllerHandler.class), frame, context);
+        Method createElement = WebGamepadLayoutLoader.class.getDeclaredMethod(
+                "createElement", VirtualController.class, Context.class,
+                JSONObject.class, PreferenceConfiguration.class);
+        createElement.setAccessible(true);
+        PreferenceConfiguration config = new PreferenceConfiguration();
+
+        VirtualControllerElement styleOpacity = (VirtualControllerElement) createElement.invoke(
+                null, controller, context, new JSONObject(
+                        "{\"id\":\"style\",\"type\":\"button\",\"style\":{\"opacity\":0.3}," +
+                                "\"opacity\":0.8}"), config);
+        VirtualControllerElement flatOpacity = (VirtualControllerElement) createElement.invoke(
+                null, controller, context, new JSONObject(
+                        "{\"id\":\"flat\",\"type\":\"button\",\"opacity\":0}"), config);
+        VirtualControllerElement clampedOpacity = (VirtualControllerElement) createElement.invoke(
+                null, controller, context, new JSONObject(
+                        "{\"id\":\"clamped\",\"type\":\"button\",\"style\":{\"opacity\":2}}"), config);
+        VirtualControllerElement defaultOpacity = (VirtualControllerElement) createElement.invoke(
+                null, controller, context, new JSONObject(
+                        "{\"id\":\"default\",\"type\":\"button\"}"), config);
+
+        assertEquals(0.3f, styleOpacity.getAlpha(), 0.001f);
+        assertEquals(0f, flatOpacity.getAlpha(), 0.001f);
+        assertEquals(1f, clampedOpacity.getAlpha(), 0.001f);
+        assertEquals(1f, defaultOpacity.getAlpha(), 0.001f);
     }
 
     @Test

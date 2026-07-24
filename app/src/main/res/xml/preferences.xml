@@ -754,18 +754,6 @@
             android:summary="@string/summary_show_guide_button"
             android:title="@string/title_show_guide_button"
             app:iconSpaceReserved="false" />
-        <com.limelight.preferences.SeekBarPreference
-            android:defaultValue="90"
-            android:dependency="checkbox_show_onscreen_controls"
-            android:dialogMessage="@string/summary_osc_opacity"
-            android:key="seekbar_osc_opacity"
-            android:max="100"
-            android:summary="@string/summary_osc_opacity"
-            android:text="@string/suffix_osc_opacity"
-            android:title="@string/dialog_title_osc_opacity"
-            app:iconSpaceReserved="false"
-            seekbar:min="0"
-            seekbar:step="1" />
         <CheckBoxPreference
             android:defaultValue="false"
             android:dependency="checkbox_show_onscreen_controls"

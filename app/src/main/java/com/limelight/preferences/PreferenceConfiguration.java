@@ -66,7 +66,6 @@ public class PreferenceConfiguration {
     private static final String HOST_AUDIO_PREF_STRING = "checkbox_host_audio";
     private static final String DEADZONE_PREF_STRING = "seekbar_deadzone";
     private static final String VIRTUAL_GAMEPAD_ANTI_DEADZONE_PREF_STRING = "seekbar_virtual_gamepad_anti_deadzone";
-    private static final String OSC_OPACITY_PREF_STRING = "seekbar_osc_opacity";
     private static final String LANGUAGE_PREF_STRING = "list_languages";
     private static final String SMALL_ICONS_PREF_STRING = "checkbox_small_icon_mode";
     private static final String MULTI_CONTROLLER_PREF_STRING = "checkbox_multi_controller";
@@ -274,7 +273,6 @@ public class PreferenceConfiguration {
     public int framePacingWarpFactor = 0;
     public int deadzonePercentage;
     public float virtualGamepadAntiDeadzone;
-    public int oscOpacity;
     public int oscKeyboardOpacity;
     public int onscreenKeyboardHeight;
     public boolean onscreenKeyboardAutoFitDisabled;
@@ -978,8 +976,6 @@ private static int getFramePacingValue(Context context) {
         config.deadzonePercentage = prefs.getInt(DEADZONE_PREF_STRING, DEFAULT_DEADZONE);
         config.virtualGamepadAntiDeadzone = prefs.getInt(VIRTUAL_GAMEPAD_ANTI_DEADZONE_PREF_STRING,
                 DEFAULT_VIRTUAL_GAMEPAD_ANTI_DEADZONE) / 100f;
-
-        config.oscOpacity = prefs.getInt(OSC_OPACITY_PREF_STRING, DEFAULT_OPACITY);
 
         config.language = prefs.getString(LANGUAGE_PREF_STRING, DEFAULT_LANGUAGE);
 

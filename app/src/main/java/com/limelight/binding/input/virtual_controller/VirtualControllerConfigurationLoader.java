@@ -408,7 +408,6 @@ public class VirtualControllerConfigurationLoader {
             );
         }
 
-        controller.setOpacity(config.oscOpacity);
     }
 
     public static void saveProfile(final VirtualController controller,

@@ -226,7 +226,6 @@ public class WebGamepadLayoutLoader {
                 return false;
             }
 
-            controller.setOpacity(config.oscOpacity);
             LimeLog.info("WebGamepadLayoutLoader: loaded layout for target=" +
                     layoutTarget.displayTarget + " resolution=" +
                     resolution.optInt("width") + "x" + resolution.optInt("height") +
@@ -713,21 +712,21 @@ public class WebGamepadLayoutLoader {
             }
             element = new WebButton(controller, context, elementId, inputType, runtime,
                     label, shape, false, foldChordBit);
-            applyStyle(element, style);
+            applyStyle(element, component, style);
             return element;
         }
 
         if ("mouseScroll".equals(type) || "mouseScroll".equals(originalType) ||
                 "mouseScroll".equals(runtime.optString("role"))) {
             element = new WebMouseScroll(controller, context, elementId, runtime, label, shape);
-            applyStyle(element, style);
+            applyStyle(element, component, style);
             return element;
         }
 
         if (isAnalogStickTouchpad(type, originalType, runtime)) {
             element = new WebTouchpadAnalogStick(controller, context, elementId, runtime, label,
                     shape, config.virtualGamepadAntiDeadzone);
-            applyStyle(element, style);
+            applyStyle(element, component, style);
             applyMouseForwarding(element, component, style);
             return element;
         }
@@ -735,27 +734,27 @@ public class WebGamepadLayoutLoader {
         if ("stick".equals(type) || "stick".equals(originalType)) {
             element = new WebStick(controller, context, elementId, inputType, runtime, label,
                     shape, config.virtualGamepadAntiDeadzone);
-            applyStyle(element, style);
+            applyStyle(element, component, style);
             applyMouseForwarding(element, component, style);
             return element;
         }
 
         if ("dpad".equals(type) || "dpad".equals(originalType)) {
             element = new WebDpad(controller, context, elementId, inputType, runtime, label, shape);
-            applyStyle(element, style);
+            applyStyle(element, component, style);
             applyMouseForwarding(element, component, style);
             return element;
         }
 
         if ("trigger".equals(type) || "trigger".equals(originalType)) {
             element = new WebButton(controller, context, elementId, inputType, runtime, label, shape, true);
-            applyStyle(element, style);
+            applyStyle(element, component, style);
             applyMouseForwarding(element, component, style);
             return element;
         }
 
         element = new WebButton(controller, context, elementId, inputType, runtime, label, shape, false);
-        applyStyle(element, style);
+        applyStyle(element, component, style);
         applyMouseForwarding(element, component, style);
         return element;
     }
@@ -766,20 +765,35 @@ public class WebGamepadLayoutLoader {
                         "analogstick".equals(normalize(runtime.optString("role"))));
     }
 
-    private static void applyStyle(WebElement element, JSONObject style) {
-        if (style == null) {
-            return;
+    private static void applyStyle(WebElement element, JSONObject component, JSONObject style) {
+        if (style != null) {
+            String colorValue = style.optString("color", null);
+            String bgValue = style.optString("bg", null);
+            if (!isEmptyColor(colorValue) || !isEmptyColor(bgValue)) {
+                int normalColor = parseColor(colorValue, element.normalColor);
+                int fillColor = parseColor(bgValue, Color.TRANSPARENT);
+                element.setWebStyle(normalColor, fillColor);
+            }
         }
 
-        String colorValue = style.optString("color", null);
-        String bgValue = style.optString("bg", null);
-        if (isEmptyColor(colorValue) && isEmptyColor(bgValue)) {
-            return;
+        Double opacity = readComponentOpacity(component, style);
+        if (opacity != null) {
+            element.setAlpha((float) Math.max(0.0, Math.min(1.0, opacity)));
+        }
+    }
+
+    private static Double readComponentOpacity(JSONObject component, JSONObject style) {
+        Double opacity = readOpacity(style);
+        return opacity != null ? opacity : readOpacity(component);
+    }
+
+    private static Double readOpacity(JSONObject owner) {
+        if (owner == null || !owner.has("opacity") || owner.isNull("opacity")) {
+            return null;
         }
 
-        int normalColor = parseColor(colorValue, element.normalColor);
-        int fillColor = parseColor(bgValue, Color.TRANSPARENT);
-        element.setWebStyle(normalColor, fillColor);
+        double opacity = owner.optDouble("opacity", Double.NaN);
+        return Double.isNaN(opacity) || Double.isInfinite(opacity) ? null : opacity;
     }
 
     private static void applyMouseForwarding(WebElement element, JSONObject component, JSONObject style) {
