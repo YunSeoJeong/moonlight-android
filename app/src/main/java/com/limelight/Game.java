@@ -27,6 +27,8 @@ import com.limelight.binding.input.virtual_controller.VirtualController;
 import com.limelight.binding.input.virtual_controller.VirtualControllerStateAggregator;
 import com.limelight.binding.input.virtual_controller.keyboard.KeyBoardController;
 import com.limelight.binding.input.virtual_controller.keyboard.KeyBoardLayoutController;
+import com.limelight.binding.input.virtual_controller.splitkeyboard.SplitKeyboardController;
+import com.limelight.binding.input.virtual_controller.splitkeyboard.SplitKeyboardPreferences;
 import com.limelight.binding.video.CrashListener;
 import com.limelight.binding.video.MediaCodecDecoderRenderer;
 import com.limelight.binding.video.MediaCodecHelper;
@@ -188,6 +190,7 @@ public class Game extends AppCompatActivity implements SurfaceHolder.Callback,
     private KeyBoardController keyBoardController;
 
     private KeyBoardLayoutController keyBoardLayoutController;
+    private SplitKeyboardController splitKeyboardController;
 
     private PreferenceConfiguration prefConfig;
     private SharedPreferences tombstonePrefs;
@@ -214,6 +217,7 @@ public class Game extends AppCompatActivity implements SurfaceHolder.Callback,
 
     private InputCaptureProvider inputCaptureProvider;
     private int modifierFlags = 0;
+    private int virtualKeyboardModifierFlags = 0;
     private boolean grabbedInput = true;
     private boolean cursorVisible = false;
     private boolean isPanZoomMode = false;
@@ -980,6 +984,23 @@ public class Game extends AppCompatActivity implements SurfaceHolder.Callback,
         overlayToggleButton = findViewById(R.id.overlayToggleZoomButton);
         setupOverlayToggleButton();
 
+        SplitKeyboardPreferences splitKeyboardPreferences =
+                new SplitKeyboardPreferences(this);
+        if (splitKeyboardPreferences.visible
+                && !onExternelDisplay
+                && getPackageManager().hasSystemFeature(PackageManager.FEATURE_TOUCHSCREEN)) {
+            splitKeyboardController = new SplitKeyboardController(
+                    this,
+                    (FrameLayout) rootView,
+                    streamContainer,
+                    backgroundTouchView,
+                    () -> {
+                        if (virtualController != null) {
+                            virtualController.refreshLayout();
+                        }
+                    });
+        }
+
         //fixed size + pacing without back-pressure on MTK
         try {
             View root = findViewById(android.R.id.content);
@@ -1258,7 +1279,6 @@ public class Game extends AppCompatActivity implements SurfaceHolder.Callback,
         keyBoardLayoutController.toggleVisibility();
     }
 
-    //显示隐藏虚拟手柄控制器
     public void toggleVirtualController(){
         if (virtualController==null) {
             initVirtualController();
@@ -1373,6 +1393,10 @@ public class Game extends AppCompatActivity implements SurfaceHolder.Callback,
 
         if(keyBoardLayoutController != null){
             keyBoardLayoutController.refreshLayout();
+        }
+
+        if (splitKeyboardController != null) {
+            splitKeyboardController.onScreenGeometryChanged();
         }
 
         // Hide on-screen overlays in PiP mode
@@ -1872,6 +1896,10 @@ public class Game extends AppCompatActivity implements SurfaceHolder.Callback,
     @Override
     protected void onDestroy() {
         logGameActivityState("onDestroy before cleanup");
+        if (splitKeyboardController != null) {
+            splitKeyboardController.destroy();
+            splitKeyboardController = null;
+        }
         super.onDestroy();
 
         boolean destroyingCurrentInstance = instance == this;
@@ -1978,6 +2006,9 @@ public class Game extends AppCompatActivity implements SurfaceHolder.Callback,
     @Override
     protected void onPause() {
         logGameActivityState("onPause before super");
+        if (splitKeyboardController != null) {
+            splitKeyboardController.onAppBackgrounded();
+        }
         if (isFinishing()) {
             // Stop any further input device notifications before we lose focus (and pointer capture)
             if (controllerHandler != null) {
@@ -2363,7 +2394,33 @@ public class Game extends AppCompatActivity implements SurfaceHolder.Callback,
     }
 
     private byte getModifierState() {
-        return (byte) modifierFlags;
+        return (byte) (modifierFlags | virtualKeyboardModifierFlags);
+    }
+
+    public boolean isVirtualKeyboardTransportConnected() {
+        return connected && conn != null && keyboardTranslator != null;
+    }
+
+    public boolean sendVirtualKeyboardEvent(int androidKeyCode, boolean keyDown,
+                                            byte virtualModifiers) {
+        if (!isVirtualKeyboardTransportConnected()) {
+            return false;
+        }
+
+        short translated = keyboardTranslator.translate(androidKeyCode, 0, -1);
+        if (translated == 0) {
+            return false;
+        }
+
+        virtualKeyboardModifierFlags = virtualModifiers;
+        conn.sendKeyboardInput(translated,
+                keyDown ? KeyboardPacket.KEY_DOWN : KeyboardPacket.KEY_UP,
+                getModifierState(), (byte) 0);
+        return true;
+    }
+
+    public void resetVirtualKeyboardModifiers() {
+        virtualKeyboardModifierFlags = 0;
     }
 
     @Override
@@ -3969,6 +4026,9 @@ public class Game extends AppCompatActivity implements SurfaceHolder.Callback,
             LimeLog.info("Game.stopConnection: exitReason=" + pendingExitReason +
                     " connecting=" + connecting + " connected=" + connected +
                     " quitOnStop=" + quitOnStop);
+            if (splitKeyboardController != null) {
+                splitKeyboardController.onConnectionLost();
+            }
             connecting = connected = false;
             updatePipAutoEnter();
 
@@ -4206,6 +4266,9 @@ public class Game extends AppCompatActivity implements SurfaceHolder.Callback,
 
                 connected = true;
                 connecting = false;
+                if (splitKeyboardController != null) {
+                    splitKeyboardController.onConnectionStarted();
+                }
                 updatePipAutoEnter();
 
                 // Persist session so the app can auto-reconnect if the user backgrounds it.

@@ -380,6 +380,10 @@ public class StreamSettings extends AppCompatActivity {
                 if (category != null) {
                     screen.removePreference(category);
                 }
+                category = findPreference("category_split_keyboard");
+                if (category != null) {
+                    screen.removePreference(category);
+                }
             }
 
             // Hide remote desktop mouse mode on pre-Oreo (which doesn't have pointer capture)

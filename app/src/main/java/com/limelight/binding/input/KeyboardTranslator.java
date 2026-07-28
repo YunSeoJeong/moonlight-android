@@ -181,6 +181,15 @@ public class KeyboardTranslator implements InputManager.InputDeviceListener {
      * @return a GFE keycode for the given keycode
      */
     public short translate(int keycode, int scancode, int deviceId) {
+        // Device volume buttons belong to Android. Sending VK_VOLUME_* through
+        // the streaming keyboard packet is not portable and can be decoded as
+        // ordinary character input by some hosts.
+        if (keycode == KeyEvent.KEYCODE_VOLUME_MUTE
+                || keycode == KeyEvent.KEYCODE_VOLUME_DOWN
+                || keycode == KeyEvent.KEYCODE_VOLUME_UP) {
+            return 0;
+        }
+
         int translated;
 
         // If a device ID was provided, look up the keyboard mapping
@@ -382,6 +391,24 @@ public class KeyboardTranslator implements InputManager.InputDeviceListener {
                 
             case KeyEvent.KEYCODE_BREAK:
                 translated = VK_PAUSE;
+                break;
+
+            case KeyEvent.KEYCODE_LANGUAGE_SWITCH:
+                // Windows VK_HANGUL/VK_KANA. Moonlight already transports Windows
+                // virtual-key values, so this requires no host protocol change.
+                translated = 0x15;
+                break;
+
+            case KeyEvent.KEYCODE_MEDIA_NEXT:
+                translated = 0xB0;
+                break;
+
+            case KeyEvent.KEYCODE_MEDIA_PREVIOUS:
+                translated = 0xB1;
+                break;
+
+            case KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE:
+                translated = 0xB3;
                 break;
 
             case KeyEvent.KEYCODE_NUMPAD_DIVIDE:

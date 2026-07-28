@@ -222,4 +222,26 @@
         <item>right</item>
     </string-array>
 
+    <string-array name="split_keyboard_modifier_mode_names">
+        <item>@string/split_keyboard_modifier_toggle_hold</item>
+        <item>@string/split_keyboard_modifier_momentary</item>
+    </string-array>
+    <string-array name="split_keyboard_modifier_mode_values" translatable="false">
+        <item>TOGGLE_AND_HOLD</item>
+        <item>MOMENTARY_ONLY</item>
+    </string-array>
+
+    <string-array name="split_keyboard_hangul_mode_names">
+        <item>@string/split_keyboard_hangul_native</item>
+        <item>@string/split_keyboard_hangul_right_alt</item>
+        <item>@string/split_keyboard_hangul_shift_space</item>
+        <item>@string/split_keyboard_hangul_custom</item>
+    </string-array>
+    <string-array name="split_keyboard_hangul_mode_values" translatable="false">
+        <item>NATIVE_HANGUL_KEY</item>
+        <item>RIGHT_ALT</item>
+        <item>SHIFT_SPACE</item>
+        <item>CUSTOM_SHORTCUT</item>
+    </string-array>
+
 </resources>

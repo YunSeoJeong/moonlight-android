@@ -797,4 +797,33 @@
     <string name="no_custom_resolutions">No custom resolutions added yet</string>
     <string name="tap_to_add_resolution">Tap + to add a custom resolution</string>
     <string name="hint_resolution_input">e.g. 1920x1080</string>
+
+    <string name="title_split_keyboard_category">Split PC keyboard (68 keys)</string>
+    <string name="title_split_keyboard_visible">Show split keyboard when streaming</string>
+    <string name="summary_split_keyboard_visible">Applied when the next session starts and kept for the whole session. It can be enabled together with a virtual gamepad.</string>
+    <string name="title_split_keyboard_hangul_labels">Show Korean Dubeolsik labels</string>
+    <string name="title_split_keyboard_shift_hangul_labels">Show shifted Korean labels</string>
+    <string name="title_split_keyboard_haptic">Key haptics</string>
+    <string name="title_split_keyboard_haptic_strength">Haptic strength</string>
+    <string name="title_split_keyboard_click_sound">Key click sound</string>
+    <string name="title_split_keyboard_repeat_delay">Key repeat delay</string>
+    <string name="title_split_keyboard_repeat_interval">Key repeat interval</string>
+    <string name="title_split_keyboard_modifier_mode">Modifier behavior</string>
+    <string name="title_split_keyboard_one_shot">Smart one-shot modifiers</string>
+    <string name="summary_split_keyboard_one_shot">Tap once for the next key only; double-tap quickly to keep the modifier locked.</string>
+    <string name="title_split_keyboard_fn_lock">Allow Fn one-shot and lock</string>
+    <string name="title_split_keyboard_hangul_mode">Remote Korean/English switch method</string>
+    <string name="title_split_keyboard_hangul_custom">Custom Korean/English shortcut</string>
+    <string name="summary_split_keyboard_hangul_custom">Example: CTRL+ALT+SPACE. Used only with the custom shortcut method.</string>
+    <string name="title_split_keyboard_key_gap">Key gap</string>
+    <string name="title_split_keyboard_center_gap">Center split gap</string>
+    <string name="title_split_keyboard_opacity">Keyboard opacity</string>
+    <string name="title_split_keyboard_height_correction">Keyboard height correction</string>
+    <string name="summary_split_keyboard_height_correction">Small responsive adjustment only; remote video keeps its aspect ratio.</string>
+    <string name="split_keyboard_modifier_toggle_hold">One-shot tap + double-tap lock + hold</string>
+    <string name="split_keyboard_modifier_momentary">Momentary only</string>
+    <string name="split_keyboard_hangul_native">Native Hangul key</string>
+    <string name="split_keyboard_hangul_right_alt">Right Alt</string>
+    <string name="split_keyboard_hangul_shift_space">Shift + Space</string>
+    <string name="split_keyboard_hangul_custom">Custom shortcut</string>
 </resources>

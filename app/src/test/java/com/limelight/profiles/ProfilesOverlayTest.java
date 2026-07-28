@@ -6,6 +6,8 @@ import android.content.SharedPreferences;
 import androidx.test.core.app.ApplicationProvider;
 
 import com.limelight.TestLogSuppressor;
+import com.limelight.binding.input.virtual_controller.splitkeyboard.SplitKeyboardPreferences;
+import com.limelight.preferences.PreferenceConfiguration;
 
 import org.junit.Before;
 import org.junit.BeforeClass;
@@ -80,6 +82,25 @@ public class ProfilesOverlayTest {
 
         SharedPreferences overlay = fresh.getOverlayingSharedPreferences(context);
         assertTrue(overlay.getBoolean("checkbox_ultra_low_latency", false));
+    }
+
+    @Test
+    public void profileCanEnableSplitKeyboardAndVirtualGamepadTogether() {
+        Map<String, Object> patch = new HashMap<>();
+        patch.put(SplitKeyboardPreferences.KEY_VISIBLE, true);
+        patch.put("checkbox_show_onscreen_controls", true);
+
+        SettingsProfile profile = new SettingsProfile(
+                UUID.randomUUID(), "Combined overlays",
+                System.currentTimeMillis(), System.currentTimeMillis(), patch);
+        ProfilesManager pm = ProfilesManager.getInstance();
+        pm.add(profile);
+        pm.setActive(profile.getUuid());
+
+        SharedPreferences overlay = pm.getOverlayingSharedPreferences(context);
+        assertTrue(new SplitKeyboardPreferences(context).visible);
+        assertTrue(PreferenceConfiguration.readPreferences(context, overlay)
+                .onscreenController);
     }
 
     private void deleteRecursively(File f) {

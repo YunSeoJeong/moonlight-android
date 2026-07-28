@@ -1040,6 +1040,165 @@
     </PreferenceCategory>
 
     <PreferenceCategory
+        android:key="category_split_keyboard"
+        android:title="@string/title_split_keyboard_category"
+        app:initialExpandedChildrenCount="4"
+        app:iconSpaceReserved="false">
+
+        <CheckBoxPreference
+            android:defaultValue="false"
+            android:key="split_keyboard_visible"
+            android:title="@string/title_split_keyboard_visible"
+            android:summary="@string/summary_split_keyboard_visible"
+            app:iconSpaceReserved="false" />
+
+        <CheckBoxPreference
+            android:defaultValue="true"
+            android:key="split_keyboard_hangul_labels"
+            android:title="@string/title_split_keyboard_hangul_labels"
+            app:iconSpaceReserved="false" />
+
+        <CheckBoxPreference
+            android:defaultValue="true"
+            android:key="split_keyboard_shift_hangul_labels"
+            android:title="@string/title_split_keyboard_shift_hangul_labels"
+            app:iconSpaceReserved="false" />
+
+        <CheckBoxPreference
+            android:defaultValue="true"
+            android:key="split_keyboard_haptic"
+            android:title="@string/title_split_keyboard_haptic"
+            app:iconSpaceReserved="false" />
+
+        <com.limelight.preferences.SeekBarPreference
+            android:defaultValue="96"
+            android:key="split_keyboard_haptic_strength"
+            android:max="255"
+            android:title="@string/title_split_keyboard_haptic_strength"
+            app:iconSpaceReserved="false"
+            seekbar:divisor="1"
+            seekbar:keyStep="8"
+            seekbar:min="1"
+            seekbar:step="1" />
+
+        <CheckBoxPreference
+            android:defaultValue="false"
+            android:key="split_keyboard_click_sound"
+            android:title="@string/title_split_keyboard_click_sound"
+            app:iconSpaceReserved="false" />
+
+        <com.limelight.preferences.SeekBarPreference
+            android:defaultValue="400"
+            android:key="split_keyboard_repeat_delay"
+            android:max="700"
+            android:text=" ms"
+            android:title="@string/title_split_keyboard_repeat_delay"
+            app:iconSpaceReserved="false"
+            seekbar:divisor="1"
+            seekbar:keyStep="25"
+            seekbar:min="250"
+            seekbar:step="25" />
+
+        <com.limelight.preferences.SeekBarPreference
+            android:defaultValue="45"
+            android:key="split_keyboard_repeat_interval"
+            android:max="120"
+            android:text=" ms"
+            android:title="@string/title_split_keyboard_repeat_interval"
+            app:iconSpaceReserved="false"
+            seekbar:divisor="1"
+            seekbar:keyStep="5"
+            seekbar:min="25"
+            seekbar:step="5" />
+
+        <ListPreference
+            android:defaultValue="TOGGLE_AND_HOLD"
+            android:entries="@array/split_keyboard_modifier_mode_names"
+            android:entryValues="@array/split_keyboard_modifier_mode_values"
+            android:key="split_keyboard_modifier_mode"
+            android:title="@string/title_split_keyboard_modifier_mode"
+            app:iconSpaceReserved="false" />
+
+        <CheckBoxPreference
+            android:defaultValue="true"
+            android:key="split_keyboard_one_shot_modifiers"
+            android:title="@string/title_split_keyboard_one_shot"
+            android:summary="@string/summary_split_keyboard_one_shot"
+            app:iconSpaceReserved="false" />
+
+        <CheckBoxPreference
+            android:defaultValue="true"
+            android:key="split_keyboard_fn_tap_lock"
+            android:title="@string/title_split_keyboard_fn_lock"
+            app:iconSpaceReserved="false" />
+
+        <ListPreference
+            android:defaultValue="NATIVE_HANGUL_KEY"
+            android:entries="@array/split_keyboard_hangul_mode_names"
+            android:entryValues="@array/split_keyboard_hangul_mode_values"
+            android:key="split_keyboard_hangul_mode"
+            android:title="@string/title_split_keyboard_hangul_mode"
+            app:iconSpaceReserved="false" />
+
+        <EditTextPreference
+            android:defaultValue="CTRL+ALT+SPACE"
+            android:key="split_keyboard_hangul_custom"
+            android:singleLine="true"
+            android:title="@string/title_split_keyboard_hangul_custom"
+            android:summary="@string/summary_split_keyboard_hangul_custom"
+            app:iconSpaceReserved="false" />
+
+        <com.limelight.preferences.SeekBarPreference
+            android:defaultValue="2"
+            android:key="split_keyboard_key_gap_dp"
+            android:max="8"
+            android:text=" dp"
+            android:title="@string/title_split_keyboard_key_gap"
+            app:iconSpaceReserved="false"
+            seekbar:divisor="1"
+            seekbar:keyStep="1"
+            seekbar:min="0"
+            seekbar:step="1" />
+
+        <com.limelight.preferences.SeekBarPreference
+            android:defaultValue="20"
+            android:key="split_keyboard_center_gap_percent"
+            android:max="30"
+            android:text="%"
+            android:title="@string/title_split_keyboard_center_gap"
+            app:iconSpaceReserved="false"
+            seekbar:divisor="1"
+            seekbar:keyStep="1"
+            seekbar:min="12"
+            seekbar:step="1" />
+
+        <com.limelight.preferences.SeekBarPreference
+            android:defaultValue="100"
+            android:key="split_keyboard_opacity"
+            android:max="100"
+            android:text="%"
+            android:title="@string/title_split_keyboard_opacity"
+            app:iconSpaceReserved="false"
+            seekbar:divisor="1"
+            seekbar:keyStep="5"
+            seekbar:min="55"
+            seekbar:step="5" />
+
+        <com.limelight.preferences.SeekBarPreference
+            android:defaultValue="0"
+            android:key="split_keyboard_height_correction_dp"
+            android:max="16"
+            android:text=" dp"
+            android:title="@string/title_split_keyboard_height_correction"
+            android:summary="@string/summary_split_keyboard_height_correction"
+            app:iconSpaceReserved="false"
+            seekbar:divisor="1"
+            seekbar:keyStep="1"
+            seekbar:min="0"
+            seekbar:step="1" />
+    </PreferenceCategory>
+
+    <PreferenceCategory
         android:key="category_settings_misc"
         android:title="@string/title_settings_misc"
         app:initialExpandedChildrenCount="1"
