@@ -776,6 +776,12 @@ public class WebGamepadLayoutLoader {
             return element;
         }
 
+        if (isRelativeMouseTouchpad(type, originalType, inputType, runtime)) {
+            element = new WebMouseTouchpad(controller, context, elementId, runtime, label, shape);
+            applyStyle(element, component, style);
+            return element;
+        }
+
         if (isAnalogStickTouchpad(type, originalType, runtime)) {
             element = new WebTouchpadAnalogStick(controller, context, elementId, runtime, label,
                     shape, config.virtualGamepadAntiDeadzone);
@@ -810,6 +816,15 @@ public class WebGamepadLayoutLoader {
         applyStyle(element, component, style);
         applyMouseForwarding(element, component, style);
         return element;
+    }
+
+    private static boolean isRelativeMouseTouchpad(String type, String originalType,
+                                                   String inputType, JSONObject runtime) {
+        String mode = normalize(runtime.optString("mode", "relative"));
+        return ("touchpad".equals(normalize(type)) ||
+                "touchpad".equals(normalize(originalType))) &&
+                "mouse".equals(normalize(inputType)) &&
+                (mode.isEmpty() || "relative".equals(mode));
     }
 
     private static boolean isAnalogStickTouchpad(String type, String originalType, JSONObject runtime) {
@@ -1107,6 +1122,13 @@ public class WebGamepadLayoutLoader {
         Game.instance.mouseButtonEvent(button, down);
     }
 
+    private static void sendMouseMove(short deltaX, short deltaY) {
+        if (Game.instance == null || !Game.instance.connected) {
+            return;
+        }
+        Game.instance.mouseMove(deltaX, deltaY);
+    }
+
     private static void sendMouseScroll(short verticalAmount, short horizontalAmount) {
         if (Game.instance == null || !Game.instance.connected) {
             return;
@@ -1256,6 +1278,307 @@ public class WebGamepadLayoutLoader {
             paint.setColor(getDefaultColor());
             canvas.drawText(label, getWidth() / 2f,
                     getHeight() / 2f - (paint.descent() + paint.ascent()) / 2f, paint);
+        }
+    }
+
+    private static class WebMouseTouchpad extends WebElement {
+        private final double sensitivity;
+        private final boolean invertX;
+        private final boolean invertY;
+        private final boolean multiTouch;
+        private final boolean moveXEnabled;
+        private final boolean moveYEnabled;
+        private final boolean scrollYEnabled;
+        private final int tapButton;
+        private final int twoFingerTapButton;
+        private final float touchSlop;
+
+        private int primaryPointerId = -1;
+        private float lastX;
+        private float lastY;
+        private float lastScrollY;
+        private double pendingDeltaX;
+        private double pendingDeltaY;
+        private double pendingScrollY;
+        private boolean scrolling;
+        private boolean scrollGestureStarted;
+        private boolean tapCandidate;
+        private boolean twoFingerTapCandidate;
+        private float tapDownX;
+        private float tapDownY;
+        private float twoFingerDownCenterX;
+        private float twoFingerDownCenterY;
+
+        WebMouseTouchpad(VirtualController controller, Context context, int elementId,
+                         JSONObject runtime, String label, String shape) {
+            super(controller, context, elementId, label, shape);
+            this.sensitivity = runtime.optDouble("sensitivity", 1.0);
+            this.invertX = runtime.optBoolean("invertX", false);
+            this.invertY = runtime.optBoolean("invertY", false);
+            this.multiTouch = runtime.optBoolean("multiTouch", true);
+
+            JSONObject binding = runtime.optJSONObject("binding");
+            this.moveXEnabled = hasMouseBinding(binding, "moveX", "mousex");
+            this.moveYEnabled = hasMouseBinding(binding, "moveY", "mousey");
+            this.scrollYEnabled = multiTouch &&
+                    hasMouseBinding(binding, "scrollY", "mousewheely");
+            this.tapButton = binding != null ?
+                    parseMouseButton(binding.optString("tap", "")) : 0;
+            this.twoFingerTapButton = binding != null ?
+                    parseMouseButton(binding.optString("twoFingerTap", "")) : 0;
+            this.touchSlop = android.view.ViewConfiguration.get(context).getScaledTouchSlop();
+        }
+
+        private static boolean hasMouseBinding(JSONObject binding, String key,
+                                               String expectedValue) {
+            if (binding == null) {
+                return false;
+            }
+            return expectedValue.equals(normalize(binding.optString(key, "")));
+        }
+
+        @Override
+        protected void onElementDraw(Canvas canvas) {
+            drawBody(canvas, isPressed());
+            drawLabel(canvas);
+        }
+
+        @Override
+        public boolean onTouchEvent(MotionEvent event) {
+            // VirtualControllerElement normally reduces events to one active pointer. A touchpad
+            // needs the original event so it can distinguish pointer movement from two-finger
+            // scrolling.
+            if (virtualController.getControllerMode() !=
+                    VirtualController.ControllerMode.Active) {
+                return super.onTouchEvent(event);
+            }
+            return handleTouchEvent(event);
+        }
+
+        @Override
+        public boolean onElementTouchEvent(MotionEvent event) {
+            return handleTouchEvent(event);
+        }
+
+        private boolean handleTouchEvent(MotionEvent event) {
+            switch (event.getActionMasked()) {
+                case MotionEvent.ACTION_DOWN:
+                    beginPointer(event);
+                    return true;
+                case MotionEvent.ACTION_POINTER_DOWN:
+                    if (multiTouch && event.getPointerCount() >= 2) {
+                        if (event.getPointerCount() == 2) {
+                            beginScroll(event);
+                        } else {
+                            twoFingerTapCandidate = false;
+                            lastScrollY = averageY(event, -1);
+                        }
+                    }
+                    return true;
+                case MotionEvent.ACTION_MOVE:
+                    if (scrolling && event.getPointerCount() >= 2) {
+                        updateScroll(event);
+                    } else {
+                        updatePointer(event);
+                    }
+                    return true;
+                case MotionEvent.ACTION_POINTER_UP:
+                    endScrollPointer(event);
+                    return true;
+                case MotionEvent.ACTION_UP:
+                    endGesture(false);
+                    return true;
+                case MotionEvent.ACTION_CANCEL:
+                    endGesture(true);
+                    return true;
+                default:
+                    return true;
+            }
+        }
+
+        private void beginPointer(MotionEvent event) {
+            primaryPointerId = event.getPointerId(0);
+            lastX = tapDownX = event.getX(0);
+            lastY = tapDownY = event.getY(0);
+            pendingDeltaX = pendingDeltaY = pendingScrollY = 0;
+            scrolling = false;
+            scrollGestureStarted = false;
+            tapCandidate = true;
+            twoFingerTapCandidate = false;
+            setPressed(true);
+            invalidate();
+        }
+
+        private void beginScroll(MotionEvent event) {
+            scrolling = true;
+            scrollGestureStarted = false;
+            tapCandidate = false;
+            twoFingerTapCandidate = twoFingerTapButton != 0;
+            lastScrollY = averageY(event, -1);
+            twoFingerDownCenterX = averageX(event, -1);
+            twoFingerDownCenterY = lastScrollY;
+            pendingScrollY = 0;
+        }
+
+        private void updatePointer(MotionEvent event) {
+            int pointerIndex = event.findPointerIndex(primaryPointerId);
+            if (pointerIndex < 0) {
+                if (event.getPointerCount() == 0) {
+                    return;
+                }
+                primaryPointerId = event.getPointerId(0);
+                lastX = event.getX(0);
+                lastY = event.getY(0);
+                return;
+            }
+
+            float x = event.getX(pointerIndex);
+            float y = event.getY(pointerIndex);
+            if (distance(x, y, tapDownX, tapDownY) > touchSlop) {
+                tapCandidate = false;
+                twoFingerTapCandidate = false;
+            }
+
+            double deltaX = moveXEnabled ? (x - lastX) * sensitivity : 0;
+            double deltaY = moveYEnabled ? (y - lastY) * sensitivity : 0;
+            if (invertX) {
+                deltaX = -deltaX;
+            }
+            if (invertY) {
+                deltaY = -deltaY;
+            }
+
+            lastX = x;
+            lastY = y;
+            pendingDeltaX += deltaX;
+            pendingDeltaY += deltaY;
+            sendPendingMouseMove();
+        }
+
+        private void updateScroll(MotionEvent event) {
+            float centerX = averageX(event, -1);
+            float centerY = averageY(event, -1);
+            if (!scrollGestureStarted &&
+                    distance(centerX, centerY, twoFingerDownCenterX,
+                            twoFingerDownCenterY) <= touchSlop) {
+                return;
+            }
+            if (!scrollGestureStarted) {
+                scrollGestureStarted = true;
+                twoFingerTapCandidate = false;
+            }
+
+            if (scrollYEnabled) {
+                pendingScrollY += (centerY - lastScrollY) * sensitivity;
+                short vertical = clampShort((int) pendingScrollY);
+                if (vertical != 0) {
+                    sendMouseScroll(vertical, (short) 0);
+                    pendingScrollY -= vertical;
+                }
+            }
+            lastScrollY = centerY;
+        }
+
+        private void endScrollPointer(MotionEvent event) {
+            if (!scrolling) {
+                return;
+            }
+
+            int liftedIndex = event.getActionIndex();
+            if (event.getPointerCount() - 1 >= 2) {
+                lastScrollY = averageY(event, liftedIndex);
+                twoFingerDownCenterX = averageX(event, liftedIndex);
+                twoFingerDownCenterY = lastScrollY;
+                scrollGestureStarted = true;
+                twoFingerTapCandidate = false;
+                return;
+            }
+
+            int remainingIndex = firstRemainingPointerIndex(event, liftedIndex);
+            scrolling = false;
+            if (remainingIndex >= 0) {
+                primaryPointerId = event.getPointerId(remainingIndex);
+                lastX = tapDownX = event.getX(remainingIndex);
+                lastY = tapDownY = event.getY(remainingIndex);
+            } else {
+                primaryPointerId = -1;
+            }
+            pendingDeltaX = pendingDeltaY = pendingScrollY = 0;
+        }
+
+        private void endGesture(boolean cancelled) {
+            if (!cancelled) {
+                if (twoFingerTapCandidate && twoFingerTapButton != 0) {
+                    clickMouseButton(twoFingerTapButton);
+                } else if (tapCandidate && tapButton != 0) {
+                    clickMouseButton(tapButton);
+                }
+            }
+
+            primaryPointerId = -1;
+            scrolling = false;
+            scrollGestureStarted = false;
+            tapCandidate = false;
+            twoFingerTapCandidate = false;
+            pendingDeltaX = pendingDeltaY = pendingScrollY = 0;
+            setPressed(false);
+            invalidate();
+        }
+
+        private void sendPendingMouseMove() {
+            short deltaX = clampShort((int) pendingDeltaX);
+            short deltaY = clampShort((int) pendingDeltaY);
+            if (deltaX == 0 && deltaY == 0) {
+                return;
+            }
+
+            sendMouseMove(deltaX, deltaY);
+            pendingDeltaX -= deltaX;
+            pendingDeltaY -= deltaY;
+        }
+
+        private void clickMouseButton(int button) {
+            sendMouseButton(button, true);
+            sendMouseButton(button, false);
+        }
+
+        private static int firstRemainingPointerIndex(MotionEvent event, int excludedIndex) {
+            for (int i = 0; i < event.getPointerCount(); i++) {
+                if (i != excludedIndex) {
+                    return i;
+                }
+            }
+            return -1;
+        }
+
+        private static float averageX(MotionEvent event, int excludedIndex) {
+            float total = 0;
+            int count = 0;
+            for (int i = 0; i < event.getPointerCount(); i++) {
+                if (i != excludedIndex) {
+                    total += event.getX(i);
+                    count++;
+                }
+            }
+            return count == 0 ? 0 : total / count;
+        }
+
+        private static float averageY(MotionEvent event, int excludedIndex) {
+            float total = 0;
+            int count = 0;
+            for (int i = 0; i < event.getPointerCount(); i++) {
+                if (i != excludedIndex) {
+                    total += event.getY(i);
+                    count++;
+                }
+            }
+            return count == 0 ? 0 : total / count;
+        }
+
+        private static float distance(float x1, float y1, float x2, float y2) {
+            float deltaX = x1 - x2;
+            float deltaY = y1 - y2;
+            return (float) Math.sqrt(deltaX * deltaX + deltaY * deltaY);
         }
     }
 

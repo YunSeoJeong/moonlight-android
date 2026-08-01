@@ -9,6 +9,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 
 import android.content.Context;
+import android.view.InputDevice;
 import android.view.MotionEvent;
 import android.view.View;
 import android.widget.Button;
@@ -17,6 +18,7 @@ import android.widget.FrameLayout;
 import androidx.preference.PreferenceManager;
 import androidx.test.core.app.ApplicationProvider;
 
+import com.limelight.Game;
 import com.limelight.binding.input.ControllerHandler;
 import com.limelight.preferences.PreferenceConfiguration;
 
@@ -30,9 +32,12 @@ import java.lang.reflect.Method;
 
 @RunWith(RobolectricTestRunner.class)
 public class WebGamepadLayoutLoaderTest {
+    private Game previousGame;
+
     @After
     public void tearDown() {
         Context context = ApplicationProvider.getApplicationContext();
+        Game.instance = previousGame;
         FoldChordSession.reset();
         WebGamepadLayoutLoader.clearImportedLayout(context);
         PreferenceManager.getDefaultSharedPreferences(context)
@@ -230,6 +235,64 @@ public class WebGamepadLayoutLoaderTest {
     }
 
     @Test
+    public void relativeMouseTouchpadAppliesSensitivityAndAxisInversion() throws Exception {
+        Context context = ApplicationProvider.getApplicationContext();
+        VirtualControllerElement touchpad = createTouchpadElement(context, "{\n" +
+                "  \"inputType\": \"mouse\",\n" +
+                "  \"mode\": \"relative\",\n" +
+                "  \"binding\": {\"moveX\": \"MouseX\", \"moveY\": \"MouseY\"},\n" +
+                "  \"sensitivity\": 5,\n" +
+                "  \"invertX\": true,\n" +
+                "  \"invertY\": false\n" +
+                "}");
+        Game game = installConnectedGame();
+
+        touchpad.onTouchEvent(pointerEvent(0, MotionEvent.ACTION_DOWN,
+                new float[]{20, 20}));
+        touchpad.onTouchEvent(pointerEvent(16, MotionEvent.ACTION_MOVE,
+                new float[]{23, 24}));
+
+        verify(game).mouseMove(-15, 20);
+    }
+
+    @Test
+    public void relativeMouseTouchpadSendsTwoFingerVerticalScrollAndResumesPointer() throws Exception {
+        Context context = ApplicationProvider.getApplicationContext();
+        VirtualControllerElement touchpad = createTouchpadElement(context, "{\n" +
+                "  \"inputType\": \"mouse\",\n" +
+                "  \"mode\": \"relative\",\n" +
+                "  \"binding\": {\n" +
+                "    \"moveX\": \"MouseX\",\n" +
+                "    \"moveY\": \"MouseY\",\n" +
+                "    \"scrollY\": \"MouseWheelY\"\n" +
+                "  },\n" +
+                "  \"sensitivity\": 2,\n" +
+                "  \"multiTouch\": true\n" +
+                "}");
+        Game game = installConnectedGame();
+
+        touchpad.onTouchEvent(pointerEvent(0, MotionEvent.ACTION_DOWN,
+                new float[]{10, 20}));
+        touchpad.onTouchEvent(pointerEvent(8,
+                MotionEvent.ACTION_POINTER_DOWN |
+                        (1 << MotionEvent.ACTION_POINTER_INDEX_SHIFT),
+                new float[]{10, 20, 30, 20}));
+        touchpad.onTouchEvent(pointerEvent(16, MotionEvent.ACTION_MOVE,
+                new float[]{10, 60, 30, 60}));
+
+        verify(game).mouseHighResScrollEvent((short) 80, (short) 0);
+
+        touchpad.onTouchEvent(pointerEvent(24,
+                MotionEvent.ACTION_POINTER_UP |
+                        (1 << MotionEvent.ACTION_POINTER_INDEX_SHIFT),
+                new float[]{10, 60, 30, 60}));
+        touchpad.onTouchEvent(pointerEvent(32, MotionEvent.ACTION_MOVE,
+                new float[]{10, 64}));
+
+        verify(game).mouseMove(0, 8);
+    }
+
+    @Test
     public void hideSettingsButtonPreferenceHidesConfigureButton() throws Exception {
         Context context = ApplicationProvider.getApplicationContext();
         WebGamepadLayoutLoader.clearImportedLayout(context);
@@ -264,5 +327,68 @@ public class WebGamepadLayoutLoaderTest {
 
         assertNotNull(configureButton);
         assertEquals(View.GONE, configureButton.getVisibility());
+    }
+
+    private VirtualControllerElement createTouchpadElement(Context context, String runtime)
+            throws Exception {
+        FrameLayout frame = new FrameLayout(context);
+        frame.layout(0, 0, 100, 100);
+        VirtualController controller =
+                new VirtualController(mock(ControllerHandler.class), frame, context);
+        JSONObject component = new JSONObject(
+                "{\"id\":\"trackpad\",\"type\":\"touchpad\",\"originalType\":\"touchpad\"," +
+                        "\"label\":\"TRACKPAD\",\"runtime\":" + runtime + "}");
+        Method createElement = WebGamepadLayoutLoader.class.getDeclaredMethod(
+                "createElement", VirtualController.class, Context.class,
+                JSONObject.class, PreferenceConfiguration.class);
+        createElement.setAccessible(true);
+        VirtualControllerElement element = (VirtualControllerElement) createElement.invoke(
+                null, controller, context, component, new PreferenceConfiguration());
+        assertNotNull(element);
+        element.layout(0, 0, 100, 100);
+        return element;
+    }
+
+    private Game installConnectedGame() {
+        previousGame = Game.instance;
+        Game game = mock(Game.class);
+        game.connected = true;
+        Game.instance = game;
+        return game;
+    }
+
+    private static MotionEvent pointerEvent(long eventTime, int action, float[] coordinates) {
+        int pointerCount = coordinates.length / 2;
+        MotionEvent.PointerProperties[] properties =
+                new MotionEvent.PointerProperties[pointerCount];
+        MotionEvent.PointerCoords[] pointerCoords =
+                new MotionEvent.PointerCoords[pointerCount];
+        for (int i = 0; i < pointerCount; i++) {
+            properties[i] = new MotionEvent.PointerProperties();
+            properties[i].id = i;
+            properties[i].toolType = MotionEvent.TOOL_TYPE_FINGER;
+
+            pointerCoords[i] = new MotionEvent.PointerCoords();
+            pointerCoords[i].x = coordinates[i * 2];
+            pointerCoords[i].y = coordinates[i * 2 + 1];
+            pointerCoords[i].pressure = 1;
+            pointerCoords[i].size = 1;
+        }
+
+        return MotionEvent.obtain(
+                0,
+                eventTime,
+                action,
+                pointerCount,
+                properties,
+                pointerCoords,
+                0,
+                0,
+                1,
+                1,
+                0,
+                0,
+                InputDevice.SOURCE_TOUCHSCREEN,
+                0);
     }
 }
