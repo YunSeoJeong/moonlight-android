@@ -248,6 +248,25 @@ public final class KeyboardStateController {
         notifyStateChanged();
     }
 
+    public void releasePressedKeys(Set<KeySpec> specs, ReleaseReason reason) {
+        if (specs == null || specs.isEmpty()) {
+            return;
+        }
+
+        List<Integer> pointerIds = new ArrayList<>();
+        for (Map.Entry<Integer, PointerPress> entry : pointers.entrySet()) {
+            if (specs.contains(entry.getValue().spec)) {
+                pointerIds.add(entry.getKey());
+            }
+        }
+        for (Integer pointerId : pointerIds) {
+            cancelPointer(pointerId);
+        }
+        if (!pointerIds.isEmpty()) {
+            notifyStateChanged();
+        }
+    }
+
     public boolean isFnActive() {
         return fnLocked || !fnPointers.isEmpty();
     }
@@ -287,6 +306,20 @@ public final class KeyboardStateController {
     private void handleModifierPointerUp(PointerPress press, long eventTime) {
         boolean isShortTap = eventTime - press.downTime < HOLD_THRESHOLD_MS;
         LogicalKey key = press.effectiveKey;
+
+        // Right Alt also hosts the Fn Korean/English key in this layout. Keep
+        // this particular Alt key momentary so a tap can never leave Alt locked.
+        if (press.spec.logicalKey == LogicalKey.RIGHT_ALT
+                && press.spec.fnMappedKey == LogicalKey.HANGUL_TOGGLE) {
+            momentaryModifierPointers.remove(press.pointerId);
+            lockedModifiers.remove(key);
+            oneShotModifiers.remove(key);
+            oneShotTapTimes.remove(key);
+            if (!hasMomentaryPointerFor(key)) {
+                ensureKeyUp(key);
+            }
+            return;
+        }
 
         if (isShortTap
                 && preferences.modifierMode == SplitKeyboardPreferences.ModifierMode.TOGGLE_AND_HOLD) {
@@ -356,6 +389,50 @@ public final class KeyboardStateController {
 
     private boolean hasMomentaryPointerFor(LogicalKey key) {
         return momentaryModifierPointers.containsValue(key);
+    }
+
+    private void cancelPointer(int pointerId) {
+        PointerPress press = pointers.remove(pointerId);
+        cancelRepeat(pointerId);
+        if (press == null) {
+            return;
+        }
+
+        if (press.effectiveKey == LogicalKey.FN) {
+            fnPointers.remove(pointerId);
+            return;
+        }
+        if (press.effectiveKey == LogicalKey.HANGUL_TOGGLE) {
+            if (press.consumesFnOneShot) {
+                releaseFnOneShot();
+            }
+            return;
+        }
+        if (press.effectiveKey.isModifier()) {
+            momentaryModifierPointers.remove(pointerId);
+            if (!press.modifierWasLocked && !lockedModifiers.contains(press.effectiveKey)
+                    && !hasMomentaryPointerFor(press.effectiveKey)) {
+                ensureKeyUp(press.effectiveKey);
+            }
+            return;
+        }
+
+        int holdCount = holdCounts.containsKey(press.effectiveKey)
+                ? holdCounts.get(press.effectiveKey) : 0;
+        if (holdCount <= 1) {
+            holdCounts.remove(press.effectiveKey);
+            ensureKeyUp(press.effectiveKey);
+        }
+        else {
+            holdCounts.put(press.effectiveKey, holdCount - 1);
+        }
+        if (press.consumesOneShot) {
+            releaseOneShotModifiers();
+            oneShotConsumerPointer = null;
+        }
+        if (press.consumesFnOneShot) {
+            releaseFnOneShot();
+        }
     }
 
     private void releaseOneShotModifiers() {

@@ -1053,6 +1053,22 @@
             app:iconSpaceReserved="false" />
 
         <CheckBoxPreference
+            android:defaultValue="false"
+            android:dependency="split_keyboard_visible"
+            android:key="split_keyboard_sub_display_mouse_controls"
+            android:title="@string/title_split_keyboard_sub_display_mouse_controls"
+            android:summary="@string/summary_split_keyboard_sub_display_mouse_controls"
+            app:iconSpaceReserved="false" />
+
+        <CheckBoxPreference
+            android:defaultValue="false"
+            android:dependency="split_keyboard_sub_display_mouse_controls"
+            android:key="split_keyboard_hide_sub_display_controls_ui"
+            android:title="@string/title_split_keyboard_hide_sub_display_controls_ui"
+            android:summary="@string/summary_split_keyboard_hide_sub_display_controls_ui"
+            app:iconSpaceReserved="false" />
+
+        <CheckBoxPreference
             android:defaultValue="true"
             android:key="split_keyboard_hangul_labels"
             android:title="@string/title_split_keyboard_hangul_labels"

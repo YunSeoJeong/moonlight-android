@@ -51,6 +51,7 @@ import com.limelight.StartExternalDisplayControlReceiver;
 import com.limelight.binding.input.virtual_controller.VirtualController;
 import com.limelight.binding.input.virtual_controller.VirtualControllerElement;
 import com.limelight.binding.input.virtual_controller.keyboard.KeyBoardLayoutController;
+import com.limelight.binding.input.virtual_controller.splitkeyboard.SubDisplayKeyboardControlsView;
 import com.limelight.preferences.PreferenceConfiguration;
 import com.limelight.ui.ExternalControllerView;
 
@@ -61,6 +62,9 @@ import com.limelight.ui.ExternalControllerView;
 public class ExternalDisplayControlActivity extends AppCompatActivity implements View.OnKeyListener, KeyBoardLayoutController.ViewCallbacks {
 
     public static String EXTRA_LAUNCH_INTENT = "launchIntent";
+    public static final String EXTRA_CONTROL_SURFACE = "controlSurface";
+    public static final String CONTROL_SURFACE_DEFAULT = "default";
+    public static final String CONTROL_SURFACE_SPLIT_KEYBOARD = "splitKeyboardMouse";
 
     @SuppressLint("StaticFieldLeak")
     public static ExternalDisplayControlActivity instance;
@@ -740,7 +744,9 @@ public class ExternalDisplayControlActivity extends AppCompatActivity implements
 
         initializeComponents();
         createProgrammaticUI();
-        initTouchEventHandling();
+        if (!isSplitKeyboardMouseControlSurface()) {
+            initTouchEventHandling();
+        }
         logLifecycleState("rebindToCurrentGame complete");
     }
 
@@ -836,6 +842,16 @@ public class ExternalDisplayControlActivity extends AppCompatActivity implements
 
         setContentView(rootLayout);
 
+        if (isSplitKeyboardMouseControlSurface()) {
+            SubDisplayKeyboardControlsView controlsView =
+                    new SubDisplayKeyboardControlsView(this, this::handleUserActivity);
+            rootLayout.addView(controlsView, new ViewGroup.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT,
+                    ViewGroup.LayoutParams.MATCH_PARENT));
+            logLifecycleState("createProgrammaticUI split keyboard controls complete");
+            return;
+        }
+
         // Top-left buttons
         LinearLayout topLeftButtons = createButtonContainer(Gravity.TOP | Gravity.START);
         topLeftButtons.setFocusable(false);
@@ -882,6 +898,11 @@ public class ExternalDisplayControlActivity extends AppCompatActivity implements
             initVirtualController();
         }
         logLifecycleState("createProgrammaticUI complete");
+    }
+
+    private boolean isSplitKeyboardMouseControlSurface() {
+        return CONTROL_SURFACE_SPLIT_KEYBOARD.equals(
+                getIntent().getStringExtra(EXTRA_CONTROL_SURFACE));
     }
 
     /**

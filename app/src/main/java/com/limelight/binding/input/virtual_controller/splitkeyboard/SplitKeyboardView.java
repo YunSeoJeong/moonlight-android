@@ -16,23 +16,44 @@ import android.view.SoundEffectConstants;
 import android.view.View;
 import android.view.ViewGroup;
 
+import com.limelight.R;
+import com.limelight.binding.input.virtual_controller.splitkeyboard.SubDisplayKeyboardControlsSession.TrackpadMode;
+
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 public final class SplitKeyboardView extends ViewGroup
-        implements KeyboardStateController.Listener {
+        implements KeyboardStateController.Listener,
+        SubDisplayKeyboardControlsSession.Listener {
     private static final int BACKGROUND_COLOR = 0xFFE3E4E8;
+    private static final int TRACKPAD_KEY_COLOR = 0xFFFAFAFC;
+    private static final int TRACKPAD_SHADOW_COLOR = 0x26000000;
+    private static final int TRACKPAD_BORDER_COLOR = 0x18000000;
+    private static final int TRACKPAD_BADGE_COLOR = 0xFFD0D1D5;
+    private static final int TRACKPAD_ACCENT_COLOR = 0xFF3D78CC;
+    private static final int TRACKPAD_TEXT_COLOR = 0xFF24262B;
+    private static final int TRACKPAD_SECONDARY_TEXT_COLOR = 0xFF676B73;
+    private static final int TRACKPAD_SCROLL_FACTOR = 5;
 
     private final List<KeyboardRowSpec> rows = SplitKeyboardLayout.createRows();
     private final List<KeyCapView> keyCaps = new ArrayList<>();
     private final Map<KeySpec, KeyCapView> viewsBySpec = new IdentityHashMap<>();
+    private final Set<KeySpec> rightKeySpecs = Collections.newSetFromMap(
+            new IdentityHashMap<>());
     private final Paint backgroundPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final float density;
 
     private KeyboardStateController stateController;
     private SplitKeyboardPreferences preferences;
+    private SubDisplayKeyboardControlsSession subDisplayControlsSession;
+    private TrackpadMode trackpadMode = TrackpadMode.NONE;
+    private int trackpadPointerId = -1;
+    private float lastTrackpadX;
+    private float lastTrackpadY;
 
     public SplitKeyboardView(Context context) {
         this(context, null);
@@ -46,6 +67,10 @@ public final class SplitKeyboardView extends ViewGroup
         setBackgroundColor(BACKGROUND_COLOR);
         setFocusable(false);
         setFocusableInTouchMode(false);
+        for (KeyboardRowSpec row : rows) {
+            rightKeySpecs.addAll(row.rightKeys);
+            rightKeySpecs.addAll(row.navigationKeys);
+        }
         createKeyCaps();
     }
 
@@ -57,6 +82,18 @@ public final class SplitKeyboardView extends ViewGroup
         this.stateController = controller;
         this.preferences = preferences;
         controller.setListener(this);
+        if (subDisplayControlsSession != null) {
+            subDisplayControlsSession.removeListener(this);
+        }
+        subDisplayControlsSession = preferences.subDisplayMouseControls
+                ? SubDisplayKeyboardControlsSession.getInstance() : null;
+        if (subDisplayControlsSession != null) {
+            subDisplayControlsSession.addListener(this);
+            trackpadMode = subDisplayControlsSession.getTrackpadMode();
+        }
+        else {
+            trackpadMode = TrackpadMode.NONE;
+        }
         setAlpha(preferences.opacityPercent / 100f);
         updateVisualStates();
     }
@@ -153,6 +190,9 @@ public final class SplitKeyboardView extends ViewGroup
     @Override
     protected void dispatchDraw(Canvas canvas) {
         super.dispatchDraw(canvas);
+        if (trackpadMode != TrackpadMode.NONE) {
+            drawTrackpad(canvas);
+        }
         if (stateController != null && !stateController.isTransportConnected()) {
             backgroundPaint.setColor(0xA6000000);
             canvas.drawRect(0, 0, getWidth(), getHeight(), backgroundPaint);
@@ -180,20 +220,22 @@ public final class SplitKeyboardView extends ViewGroup
         switch (event.getActionMasked()) {
             case MotionEvent.ACTION_DOWN:
             case MotionEvent.ACTION_POINTER_DOWN:
-                handlePointerDown(event, event.getActionIndex());
+                handlePointerDownOrTrackpad(event, event.getActionIndex());
                 return true;
 
             case MotionEvent.ACTION_POINTER_UP:
             case MotionEvent.ACTION_UP:
-                handlePointerUp(event, event.getActionIndex());
+                handlePointerUpOrTrackpad(event, event.getActionIndex());
                 return true;
 
             case MotionEvent.ACTION_CANCEL:
                 stateController.releaseAllPressedKeys(ReleaseReason.ACTION_CANCEL);
+                resetTrackpadPointer();
                 updateVisualStates();
                 return true;
 
             case MotionEvent.ACTION_MOVE:
+                handleTrackpadMove(event);
                 // Pointer-to-key assignment is pinned to the first key until release.
                 return true;
 
@@ -208,12 +250,32 @@ public final class SplitKeyboardView extends ViewGroup
             stateController.releaseAllPressedKeys(ReleaseReason.VIEW_DETACHED);
             stateController.setListener(null);
         }
+        if (subDisplayControlsSession != null) {
+            subDisplayControlsSession.removeListener(this);
+        }
+        resetTrackpadPointer();
         super.onDetachedFromWindow();
     }
 
     @Override
     public void onKeyboardStateChanged() {
         updateVisualStates();
+    }
+
+    @Override
+    public void onSubDisplayKeyboardControlsChanged() {
+        TrackpadMode newMode = subDisplayControlsSession != null
+                ? subDisplayControlsSession.getTrackpadMode() : TrackpadMode.NONE;
+        if (trackpadMode == TrackpadMode.NONE && newMode != TrackpadMode.NONE
+                && stateController != null) {
+            // Prevent a right-side key held while the pad appears from getting stuck.
+            stateController.releasePressedKeys(rightKeySpecs, ReleaseReason.ACTION_CANCEL);
+        }
+        if (newMode == TrackpadMode.NONE) {
+            resetTrackpadPointer();
+        }
+        trackpadMode = newMode;
+        invalidate();
     }
 
     public void refreshConnectionState() {
@@ -278,8 +340,17 @@ public final class SplitKeyboardView extends ViewGroup
         return units;
     }
 
-    private void handlePointerDown(MotionEvent event, int index) {
+    private void handlePointerDownOrTrackpad(MotionEvent event, int index) {
         int pointerId = event.getPointerId(index);
+        if (trackpadMode != TrackpadMode.NONE && event.getX(index) >= getWidth() / 2f) {
+            if (trackpadPointerId == -1) {
+                trackpadPointerId = pointerId;
+                lastTrackpadX = event.getX(index);
+                lastTrackpadY = event.getY(index);
+                feedback(false);
+            }
+            return;
+        }
         KeyCapView keyCap = findKeyCap(event.getX(index), event.getY(index));
         if (keyCap == null) {
             return;
@@ -293,9 +364,153 @@ public final class SplitKeyboardView extends ViewGroup
         }
     }
 
-    private void handlePointerUp(MotionEvent event, int index) {
+    private void handlePointerUpOrTrackpad(MotionEvent event, int index) {
         int pointerId = event.getPointerId(index);
+        if (pointerId == trackpadPointerId) {
+            resetTrackpadPointer();
+            return;
+        }
         stateController.pointerUp(pointerId, event.getEventTime());
+    }
+
+    private void handleTrackpadMove(MotionEvent event) {
+        if (trackpadPointerId == -1 || subDisplayControlsSession == null) {
+            return;
+        }
+        int index = event.findPointerIndex(trackpadPointerId);
+        if (index < 0) {
+            resetTrackpadPointer();
+            return;
+        }
+
+        float x = event.getX(index);
+        float y = event.getY(index);
+        int deltaX = Math.round(x - lastTrackpadX);
+        int deltaY = Math.round(y - lastTrackpadY);
+        lastTrackpadX = x;
+        lastTrackpadY = y;
+        if (deltaX == 0 && deltaY == 0) {
+            return;
+        }
+
+        if (trackpadMode == TrackpadMode.MOUSE) {
+            subDisplayControlsSession.sendTrackpadMove(deltaX, deltaY);
+        }
+        else if (trackpadMode == TrackpadMode.SCROLL) {
+            subDisplayControlsSession.sendTrackpadScroll(
+                    deltaY * TRACKPAD_SCROLL_FACTOR,
+                    deltaX * TRACKPAD_SCROLL_FACTOR);
+        }
+    }
+
+    private void resetTrackpadPointer() {
+        trackpadPointerId = -1;
+        lastTrackpadX = 0;
+        lastTrackpadY = 0;
+    }
+
+    private void drawTrackpad(Canvas canvas) {
+        float left = getWidth() / 2f;
+        backgroundPaint.setStyle(Paint.Style.FILL);
+        backgroundPaint.setColor(BACKGROUND_COLOR);
+        canvas.drawRect(left, 0, getWidth(), getHeight(), backgroundPaint);
+
+        float inset = Math.max(8f * density, getHeight() * 0.04f);
+        float radius = clamp(getHeight() * 0.07f, 8f * density, 16f * density);
+        RectF padRect = new RectF(left + inset, inset,
+                getWidth() - inset, getHeight() - inset);
+
+        RectF shadowRect = new RectF(padRect);
+        shadowRect.offset(0, Math.max(1.5f, density * 1.4f));
+        backgroundPaint.setStyle(Paint.Style.FILL);
+        backgroundPaint.setColor(TRACKPAD_SHADOW_COLOR);
+        canvas.drawRoundRect(shadowRect, radius, radius, backgroundPaint);
+
+        backgroundPaint.setColor(TRACKPAD_KEY_COLOR);
+        canvas.drawRoundRect(padRect, radius, radius, backgroundPaint);
+
+        backgroundPaint.setStyle(Paint.Style.STROKE);
+        backgroundPaint.setStrokeWidth(Math.max(1.5f, density));
+        backgroundPaint.setColor(TRACKPAD_BORDER_COLOR);
+        canvas.drawRoundRect(padRect, radius, radius, backgroundPaint);
+
+        float badgePaddingX = Math.max(9f * density, padRect.width() * 0.035f);
+        float badgePaddingY = Math.max(5f * density, padRect.height() * 0.025f);
+        String badge = trackpadMode == TrackpadMode.MOUSE ? "RT" : "RB";
+        backgroundPaint.setStyle(Paint.Style.FILL);
+        backgroundPaint.setTextSize(clamp(getHeight() * 0.045f,
+                11f * density, 18f * density));
+        float badgeTextWidth = backgroundPaint.measureText(badge);
+        Paint.FontMetrics badgeMetrics = backgroundPaint.getFontMetrics();
+        float badgeHeight = badgeMetrics.descent - badgeMetrics.ascent;
+        RectF badgeRect = new RectF(padRect.left + badgePaddingX,
+                padRect.top + badgePaddingY,
+                padRect.left + badgePaddingX * 2f + badgeTextWidth,
+                padRect.top + badgePaddingY * 2f + badgeHeight);
+        backgroundPaint.setColor(TRACKPAD_BADGE_COLOR);
+        canvas.drawRoundRect(badgeRect, 5f * density, 5f * density, backgroundPaint);
+        backgroundPaint.setColor(TRACKPAD_ACCENT_COLOR);
+        backgroundPaint.setTextAlign(Paint.Align.CENTER);
+        float badgeBaseline = badgeRect.centerY()
+                - (badgeMetrics.ascent + badgeMetrics.descent) / 2f;
+        canvas.drawText(badge, badgeRect.centerX(), badgeBaseline, backgroundPaint);
+
+        backgroundPaint.setStyle(Paint.Style.FILL);
+        backgroundPaint.setTextAlign(Paint.Align.CENTER);
+        backgroundPaint.setTextSize(clamp(getHeight() * 0.07f,
+                14f * density, 28f * density));
+        backgroundPaint.setColor(TRACKPAD_TEXT_COLOR);
+        String label = getResources().getString(trackpadMode == TrackpadMode.MOUSE
+                ? R.string.split_keyboard_mouse_trackpad
+                : R.string.split_keyboard_scroll_trackpad);
+        Paint.FontMetrics metrics = backgroundPaint.getFontMetrics();
+        float baseline = getHeight() * 0.45f
+                - (metrics.ascent + metrics.descent) / 2f;
+        canvas.drawText(label, (left + getWidth()) / 2f, baseline, backgroundPaint);
+
+        drawTrackpadDirectionIndicator(canvas,
+                (left + getWidth()) / 2f,
+                getHeight() * 0.67f,
+                Math.min(padRect.width() * 0.16f, getHeight() * 0.105f),
+                trackpadMode == TrackpadMode.SCROLL);
+    }
+
+    private void drawTrackpadDirectionIndicator(Canvas canvas, float centerX,
+                                                 float centerY, float radius,
+                                                 boolean drawArrowHeads) {
+        backgroundPaint.setStyle(Paint.Style.STROKE);
+        backgroundPaint.setStrokeCap(Paint.Cap.ROUND);
+        backgroundPaint.setStrokeWidth(Math.max(1.5f, density * 1.2f));
+        backgroundPaint.setColor(drawArrowHeads
+                ? TRACKPAD_ACCENT_COLOR : TRACKPAD_SECONDARY_TEXT_COLOR);
+        canvas.drawLine(centerX - radius, centerY,
+                centerX + radius, centerY, backgroundPaint);
+        canvas.drawLine(centerX, centerY - radius,
+                centerX, centerY + radius, backgroundPaint);
+
+        float head = Math.max(4f * density, radius * 0.24f);
+        if (drawArrowHeads) {
+            drawArrowHead(canvas, centerX + radius, centerY, -head, -head);
+            drawArrowHead(canvas, centerX + radius, centerY, -head, head);
+            drawArrowHead(canvas, centerX - radius, centerY, head, -head);
+            drawArrowHead(canvas, centerX - radius, centerY, head, head);
+            drawArrowHead(canvas, centerX, centerY - radius, -head, head);
+            drawArrowHead(canvas, centerX, centerY - radius, head, head);
+            drawArrowHead(canvas, centerX, centerY + radius, -head, -head);
+            drawArrowHead(canvas, centerX, centerY + radius, head, -head);
+        }
+        else {
+            backgroundPaint.setStyle(Paint.Style.FILL);
+            backgroundPaint.setColor(TRACKPAD_ACCENT_COLOR);
+            canvas.drawCircle(centerX, centerY, Math.max(3f * density, radius * 0.12f),
+                    backgroundPaint);
+        }
+        backgroundPaint.setStrokeCap(Paint.Cap.BUTT);
+    }
+
+    private void drawArrowHead(Canvas canvas, float x, float y,
+                               float deltaX, float deltaY) {
+        canvas.drawLine(x, y, x + deltaX, y + deltaY, backgroundPaint);
     }
 
     private KeyCapView findKeyCap(float x, float y) {
@@ -356,10 +571,14 @@ public final class SplitKeyboardView extends ViewGroup
     }
 
     private void feedback() {
+        feedback(true);
+    }
+
+    private void feedback(boolean includeHaptic) {
         if (preferences == null) {
             return;
         }
-        if (preferences.hapticEnabled) {
+        if (includeHaptic && preferences.hapticEnabled) {
             Vibrator vibrator = (Vibrator) getContext().getSystemService(Context.VIBRATOR_SERVICE);
             if (vibrator != null && vibrator.hasVibrator()) {
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {

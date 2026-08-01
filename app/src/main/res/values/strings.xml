@@ -690,6 +690,7 @@
     <string name="title_checkbox_dual_screen_virtual_gamepad">Dual-screen virtual gamepad</string>
     <string name="summary_checkbox_dual_screen_virtual_gamepad">Show displayTarget=sub controls on the second screen while streaming.</string>
     <string name="dual_screen_virtual_gamepad_unavailable">Dual-screen virtual gamepad is not available on this device state.</string>
+    <string name="dual_screen_controls_unavailable">Dual-screen controls are not available on this device state.</string>
     <string name="notification_channel_name">External Display Control</string>
     <string name="notification_title">External Display Active</string>
     <string name="notification_text">Tap to open touchpad controller</string>
@@ -801,6 +802,16 @@
     <string name="title_split_keyboard_category">Split PC keyboard (68 keys)</string>
     <string name="title_split_keyboard_visible">Show split keyboard when streaming</string>
     <string name="summary_split_keyboard_visible">Applied when the next session starts and kept for the whole session. It can be enabled together with a virtual gamepad.</string>
+    <string name="title_split_keyboard_sub_display_mouse_controls">Use mouse controls on the second screen</string>
+    <string name="summary_split_keyboard_sub_display_mouse_controls">Enables four LB/LT/RB/RT touch regions on the second screen. LB and LT are left and right click. Hold RT to turn the keyboard’s right half into a mouse trackpad, or RB for four-way scrolling. This takes priority over the dual-screen virtual gamepad.</string>
+    <string name="title_split_keyboard_hide_sub_display_controls_ui">Hide the second-screen controls UI</string>
+    <string name="summary_split_keyboard_hide_sub_display_controls_ui">Keeps all four touch regions active but displays a black screen instead of the controls.</string>
+    <string name="split_keyboard_sub_control_left_click">LEFT CLICK</string>
+    <string name="split_keyboard_sub_control_right_click">RIGHT CLICK</string>
+    <string name="split_keyboard_sub_control_trackpad">TRACKPAD</string>
+    <string name="split_keyboard_sub_control_scroll">SCROLL</string>
+    <string name="split_keyboard_mouse_trackpad">MOUSE TRACKPAD</string>
+    <string name="split_keyboard_scroll_trackpad">FOUR-WAY SCROLL</string>
     <string name="title_split_keyboard_hangul_labels">Show Korean Dubeolsik labels</string>
     <string name="title_split_keyboard_shift_hangul_labels">Show shifted Korean labels</string>
     <string name="title_split_keyboard_haptic">Key haptics</string>

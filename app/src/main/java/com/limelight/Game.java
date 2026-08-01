@@ -944,8 +944,12 @@ public class Game extends AppCompatActivity implements SurfaceHolder.Callback,
         }
 
         //特殊按键屏幕布局
-        if (prefConfig.dualScreenVirtualGamepad) {
-            LimeLog.info("Game.onCreate: starting dual-screen virtual gamepad");
+        SplitKeyboardPreferences splitKeyboardPreferences =
+                new SplitKeyboardPreferences(this);
+        if (prefConfig.dualScreenVirtualGamepad
+                || (splitKeyboardPreferences.visible
+                && splitKeyboardPreferences.subDisplayMouseControls)) {
+            LimeLog.info("Game.onCreate: starting dual-screen control surface");
             DualDisplayVirtualGamepadManager.start(this);
         }
 
@@ -984,8 +988,6 @@ public class Game extends AppCompatActivity implements SurfaceHolder.Callback,
         overlayToggleButton = findViewById(R.id.overlayToggleZoomButton);
         setupOverlayToggleButton();
 
-        SplitKeyboardPreferences splitKeyboardPreferences =
-                new SplitKeyboardPreferences(this);
         if (splitKeyboardPreferences.visible
                 && !onExternelDisplay
                 && getPackageManager().hasSystemFeature(PackageManager.FEATURE_TOUCHSCREEN)) {
@@ -2421,6 +2423,48 @@ public class Game extends AppCompatActivity implements SurfaceHolder.Callback,
 
     public void resetVirtualKeyboardModifiers() {
         virtualKeyboardModifierFlags = 0;
+    }
+
+    public boolean isSplitKeyboardMouseTransportConnected() {
+        return connected && conn != null;
+    }
+
+    public boolean sendSplitKeyboardMouseButton(byte button, boolean down) {
+        if (!isSplitKeyboardMouseTransportConnected()) {
+            return false;
+        }
+        if (down) {
+            conn.sendMouseButtonDown(button);
+        }
+        else {
+            conn.sendMouseButtonUp(button);
+        }
+        return true;
+    }
+
+    public boolean sendSplitKeyboardMouseMove(int deltaX, int deltaY) {
+        if (!isSplitKeyboardMouseTransportConnected()) {
+            return false;
+        }
+        short x = clampSplitKeyboardMouseAmount(deltaX);
+        short y = clampSplitKeyboardMouseAmount(deltaY);
+        if (x != 0 || y != 0) {
+            conn.sendMouseMove(x, y);
+        }
+        return true;
+    }
+
+    public boolean sendSplitKeyboardMouseScroll(int verticalAmount, int horizontalAmount) {
+        if (!isSplitKeyboardMouseTransportConnected()) {
+            return false;
+        }
+        mouseHighResScrollEvent(clampSplitKeyboardMouseAmount(verticalAmount),
+                clampSplitKeyboardMouseAmount(horizontalAmount));
+        return true;
+    }
+
+    private static short clampSplitKeyboardMouseAmount(int amount) {
+        return (short) Math.max(Short.MIN_VALUE, Math.min(Short.MAX_VALUE, amount));
     }
 
     @Override
@@ -4029,6 +4073,7 @@ public class Game extends AppCompatActivity implements SurfaceHolder.Callback,
             if (splitKeyboardController != null) {
                 splitKeyboardController.onConnectionLost();
             }
+            DualDisplayVirtualGamepadManager.onConnectionLost();
             connecting = connected = false;
             updatePipAutoEnter();
 
@@ -4269,6 +4314,7 @@ public class Game extends AppCompatActivity implements SurfaceHolder.Callback,
                 if (splitKeyboardController != null) {
                     splitKeyboardController.onConnectionStarted();
                 }
+                DualDisplayVirtualGamepadManager.onConnectionStarted();
                 updatePipAutoEnter();
 
                 // Persist session so the app can auto-reconnect if the user backgrounds it.

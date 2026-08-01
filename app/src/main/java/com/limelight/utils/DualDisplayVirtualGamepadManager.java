@@ -28,6 +28,9 @@ import com.limelight.LimeLog;
 import com.limelight.R;
 import com.limelight.binding.input.virtual_controller.VirtualController;
 import com.limelight.binding.input.virtual_controller.VirtualControllerElement;
+import com.limelight.binding.input.virtual_controller.splitkeyboard.SplitKeyboardPreferences;
+import com.limelight.binding.input.virtual_controller.splitkeyboard.SubDisplayKeyboardControlsSession;
+import com.limelight.binding.input.virtual_controller.splitkeyboard.SubDisplayKeyboardControlsView;
 import com.limelight.ui.ExternalControllerView;
 
 import java.util.List;
@@ -46,12 +49,17 @@ public final class DualDisplayVirtualGamepadManager {
     private static int windowAreaGeneration;
     private static int windowAreaRetryCount;
     private static Runnable windowAreaRetryRunnable;
+    private static boolean splitKeyboardMouseControls;
 
     private DualDisplayVirtualGamepadManager() {
     }
 
     public static void start(Game game) {
         int generation = ++windowAreaGeneration;
+        SplitKeyboardPreferences keyboardPreferences =
+                new SplitKeyboardPreferences(game);
+        splitKeyboardMouseControls = keyboardPreferences.visible
+                && keyboardPreferences.subDisplayMouseControls;
         windowAreaRetryCount = 0;
         cancelWindowAreaRetry();
         LimeLog.info("DualDisplayVirtualGamepadManager.start: gameDisplayId=" +
@@ -59,8 +67,10 @@ public final class DualDisplayVirtualGamepadManager {
                 (ExternalDisplayControlActivity.instance != null) +
                 " windowAreaSession=" + (windowAreaSession != null) +
                 " presentationRequested=" + windowAreaPresentationRequested +
+                " splitKeyboardMouseControls=" + splitKeyboardMouseControls +
                 " generation=" + generation);
         closeWindowAreaPresentation();
+        SubDisplayKeyboardControlsSession.getInstance().reset();
         if (Game.instance != null) {
             Game.instance.resetVirtualControllerInputState(VirtualController.DISPLAY_TARGET_SUB);
         }
@@ -75,9 +85,19 @@ public final class DualDisplayVirtualGamepadManager {
         if (!tryStartWindowAreaPresentation(game, generation)) {
             game.runOnUiThread(() ->
                     android.widget.Toast.makeText(game,
-                            R.string.dual_screen_virtual_gamepad_unavailable,
+                            R.string.dual_screen_controls_unavailable,
                             android.widget.Toast.LENGTH_SHORT).show());
         }
+    }
+
+    public static void onConnectionLost() {
+        SubDisplayKeyboardControlsSession.getInstance().reset();
+    }
+
+    public static void onConnectionStarted() {
+        // Keep the secondary-display surface, but discard any touch state that
+        // belonged to the previous transport session.
+        SubDisplayKeyboardControlsSession.getInstance().reset();
     }
 
     public static void close() {
@@ -90,6 +110,7 @@ public final class DualDisplayVirtualGamepadManager {
                 " presentationRequested=" + windowAreaPresentationRequested +
                 " generation=" + windowAreaGeneration);
         ExternalDisplayControlActivity.closeExternalDisplayControl();
+        SubDisplayKeyboardControlsSession.getInstance().reset();
         if (Game.instance != null) {
             Game.instance.resetVirtualControllerInputState(VirtualController.DISPLAY_TARGET_SUB);
         }
@@ -135,6 +156,10 @@ public final class DualDisplayVirtualGamepadManager {
 
         try {
             Intent intent = new Intent(game, ExternalDisplayControlActivity.class);
+            intent.putExtra(ExternalDisplayControlActivity.EXTRA_CONTROL_SURFACE,
+                    splitKeyboardMouseControls
+                            ? ExternalDisplayControlActivity.CONTROL_SURFACE_SPLIT_KEYBOARD
+                            : ExternalDisplayControlActivity.CONTROL_SURFACE_DEFAULT);
             intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK |
                     Intent.FLAG_ACTIVITY_SINGLE_TOP |
                     Intent.FLAG_ACTIVITY_CLEAR_TOP);
@@ -302,8 +327,8 @@ public final class DualDisplayVirtualGamepadManager {
                 windowAreaRetryCount = 0;
                 cancelWindowAreaRetry();
                 try {
-                    session.setContentView(createSubVirtualGamepadView(session.getContext()));
-                    LimeLog.info("WindowArea virtual gamepad presentation started. generation=" +
+                    session.setContentView(createSubDisplayControlView(session.getContext()));
+                    LimeLog.info("WindowArea control presentation started. generation=" +
                             generation);
                 } catch (Throwable t) {
                     LimeLog.warning("Unable to attach WindowArea virtual gamepad: "
@@ -333,6 +358,7 @@ public final class DualDisplayVirtualGamepadManager {
                 }
                 windowAreaSession = null;
                 windowAreaPresentationRequested = false;
+                SubDisplayKeyboardControlsSession.getInstance().reset();
                 if (Game.instance != null) {
                     Game.instance.resetVirtualControllerInputState(
                             VirtualController.DISPLAY_TARGET_SUB);
@@ -438,6 +464,18 @@ public final class DualDisplayVirtualGamepadManager {
                         " subElements=" + virtualController.getElements().size()));
 
         return root;
+    }
+
+    private static View createSubDisplayControlView(Context context) {
+        if (splitKeyboardMouseControls) {
+            SubDisplayKeyboardControlsView view =
+                    new SubDisplayKeyboardControlsView(context);
+            view.setLayoutParams(new ViewGroup.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT,
+                    ViewGroup.LayoutParams.MATCH_PARENT));
+            return view;
+        }
+        return createSubVirtualGamepadView(context);
     }
 
     private static void installSubVirtualGamepadTouchRouter(ExternalControllerView root,

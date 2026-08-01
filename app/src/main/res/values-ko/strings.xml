@@ -298,6 +298,17 @@
     <string name="title_split_keyboard_category">분할 PC 키보드 (68키)</string>
     <string name="title_split_keyboard_visible">스트리밍 중 분할 키보드 표시</string>
     <string name="summary_split_keyboard_visible">다음 세션 시작 시 적용되어 세션이 끝날 때까지 유지됩니다. 가상 게임패드와 함께 사용할 수 있습니다.</string>
+    <string name="title_split_keyboard_sub_display_mouse_controls">서브디스플레이 마우스 조작 사용</string>
+    <string name="summary_split_keyboard_sub_display_mouse_controls">서브디스플레이에 LB/LT/RB/RT 터치 영역을 사용합니다. LB와 LT는 각각 좌클릭과 우클릭이며, RT를 누르는 동안 키보드 오른쪽 절반을 마우스 트랙패드로, RB를 누르는 동안 상하좌우 스크롤 패드로 사용합니다. 듀얼 스크린 가상 게임패드보다 우선 적용됩니다.</string>
+    <string name="title_split_keyboard_hide_sub_display_controls_ui">서브디스플레이 조작 UI 숨기기</string>
+    <string name="summary_split_keyboard_hide_sub_display_controls_ui">네 터치 영역과 조작 기능은 유지하면서 버튼 대신 검은 화면을 표시합니다.</string>
+    <string name="split_keyboard_sub_control_left_click">좌클릭</string>
+    <string name="split_keyboard_sub_control_right_click">우클릭</string>
+    <string name="split_keyboard_sub_control_trackpad">트랙패드</string>
+    <string name="split_keyboard_sub_control_scroll">스크롤</string>
+    <string name="dual_screen_controls_unavailable">현재 기기 상태에서는 듀얼 스크린 조작 기능을 사용할 수 없습니다.</string>
+    <string name="split_keyboard_mouse_trackpad">마우스 트랙패드</string>
+    <string name="split_keyboard_scroll_trackpad">상하좌우 스크롤</string>
     <string name="title_split_keyboard_hangul_labels">한글 두벌식 글자 표시</string>
     <string name="title_split_keyboard_shift_hangul_labels">Shift 한글 글자 표시</string>
     <string name="title_split_keyboard_haptic">키 진동</string>

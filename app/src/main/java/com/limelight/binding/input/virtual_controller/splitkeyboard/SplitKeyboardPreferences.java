@@ -12,6 +12,10 @@ import java.util.Locale;
 
 public final class SplitKeyboardPreferences {
     public static final String KEY_VISIBLE = "split_keyboard_visible";
+    public static final String KEY_SUB_DISPLAY_MOUSE_CONTROLS =
+            "split_keyboard_sub_display_mouse_controls";
+    public static final String KEY_HIDE_SUB_DISPLAY_CONTROLS_UI =
+            "split_keyboard_hide_sub_display_controls_ui";
     public static final String KEY_HANGUL_LABELS = "split_keyboard_hangul_labels";
     public static final String KEY_SHIFT_HANGUL_LABELS = "split_keyboard_shift_hangul_labels";
     public static final String KEY_HAPTIC = "split_keyboard_haptic";
@@ -46,6 +50,8 @@ public final class SplitKeyboardPreferences {
     }
 
     public final boolean visible;
+    public final boolean subDisplayMouseControls;
+    public final boolean hideSubDisplayControlsUi;
     public final boolean showHangulLabels;
     public final boolean showShiftHangulLabels;
     public final boolean hapticEnabled;
@@ -67,6 +73,10 @@ public final class SplitKeyboardPreferences {
         SharedPreferences preferences =
                 ProfilesManager.getInstance().getOverlayingSharedPreferences(context);
         visible = preferences.getBoolean(KEY_VISIBLE, false);
+        subDisplayMouseControls = preferences.getBoolean(
+                KEY_SUB_DISPLAY_MOUSE_CONTROLS, false);
+        hideSubDisplayControlsUi = preferences.getBoolean(
+                KEY_HIDE_SUB_DISPLAY_CONTROLS_UI, false);
         showHangulLabels = preferences.getBoolean(KEY_HANGUL_LABELS, true);
         showShiftHangulLabels = preferences.getBoolean(KEY_SHIFT_HANGUL_LABELS, true);
         hapticEnabled = preferences.getBoolean(KEY_HAPTIC, true);

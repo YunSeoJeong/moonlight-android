@@ -18,7 +18,10 @@ import org.robolectric.annotation.Config;
 import org.robolectric.annotation.LooperMode;
 
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.IdentityHashMap;
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
 @RunWith(RobolectricTestRunner.class)
@@ -47,6 +50,19 @@ public class KeyboardStateControllerTest {
 
         assertEquals("D:KEY_A:0", transport.events.get(0));
         assertEquals("U:KEY_A:0", transport.events.get(1));
+    }
+
+    @Test
+    public void subDisplayUiCanBeHiddenWithoutDisablingControls() {
+        PreferenceManager.getDefaultSharedPreferences(context).edit()
+                .putBoolean(SplitKeyboardPreferences.KEY_SUB_DISPLAY_MOUSE_CONTROLS, true)
+                .putBoolean(SplitKeyboardPreferences.KEY_HIDE_SUB_DISPLAY_CONTROLS_UI, true)
+                .commit();
+
+        SplitKeyboardPreferences preferences = new SplitKeyboardPreferences(context);
+
+        assertTrue(preferences.subDisplayMouseControls);
+        assertTrue(preferences.hideSubDisplayControlsUi);
     }
 
     @Test
@@ -143,6 +159,42 @@ public class KeyboardStateControllerTest {
         controller.pointerUp(4, 340);
         assertEquals("U:LEFT_CTRL:0", transport.events.get(3));
         assertTrue(!controller.isLocked(LogicalKey.LEFT_CTRL));
+    }
+
+    @Test
+    public void hangulRightAltIsAlwaysMomentary() {
+        KeySpec rightAlt = find(LogicalKey.RIGHT_ALT);
+
+        controller.pointerDown(1, rightAlt, 0);
+        controller.pointerUp(1, 100);
+        controller.pointerDown(2, rightAlt, 150);
+        controller.pointerUp(2, 220);
+
+        assertEquals(4, transport.events.size());
+        assertEquals("D:RIGHT_ALT:4", transport.events.get(0));
+        assertEquals("U:RIGHT_ALT:0", transport.events.get(1));
+        assertEquals("D:RIGHT_ALT:4", transport.events.get(2));
+        assertEquals("U:RIGHT_ALT:0", transport.events.get(3));
+        assertTrue(!controller.isLocked(LogicalKey.RIGHT_ALT));
+        assertTrue(!controller.isOneShot(LogicalKey.RIGHT_ALT));
+    }
+
+    @Test
+    public void activatingRightTrackpadOnlyReleasesRightSideKeys() {
+        KeySpec leftCtrl = find(LogicalKey.LEFT_CTRL);
+        KeySpec rightAlt = find(LogicalKey.RIGHT_ALT);
+        controller.pointerDown(1, leftCtrl, 0);
+        controller.pointerDown(2, rightAlt, 10);
+        Set<KeySpec> rightKeys = Collections.newSetFromMap(new IdentityHashMap<>());
+        rightKeys.add(rightAlt);
+
+        controller.releasePressedKeys(rightKeys, ReleaseReason.ACTION_CANCEL);
+
+        assertTrue(controller.getPressedKeysForTesting().contains(LogicalKey.LEFT_CTRL));
+        assertTrue(!controller.getPressedKeysForTesting().contains(LogicalKey.RIGHT_ALT));
+        assertEquals("U:RIGHT_ALT:2", transport.events.get(2));
+        controller.pointerUp(1, 500);
+        assertEquals("U:LEFT_CTRL:0", transport.events.get(3));
     }
 
     @Test
