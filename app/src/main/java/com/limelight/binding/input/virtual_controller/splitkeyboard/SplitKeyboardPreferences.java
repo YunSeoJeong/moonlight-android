@@ -14,6 +14,8 @@ public final class SplitKeyboardPreferences {
     public static final String KEY_VISIBLE = "split_keyboard_visible";
     public static final String KEY_SUB_DISPLAY_MOUSE_CONTROLS =
             "split_keyboard_sub_display_mouse_controls";
+    public static final String KEY_MOUSE_TOUCH_COMPATIBILITY =
+            "split_keyboard_mouse_touch_compatibility";
     public static final String KEY_HIDE_SUB_DISPLAY_CONTROLS_UI =
             "split_keyboard_hide_sub_display_controls_ui";
     public static final String KEY_HANGUL_LABELS = "split_keyboard_hangul_labels";
@@ -21,8 +23,6 @@ public final class SplitKeyboardPreferences {
     public static final String KEY_HAPTIC = "split_keyboard_haptic";
     public static final String KEY_HAPTIC_STRENGTH = "split_keyboard_haptic_strength";
     public static final String KEY_CLICK_SOUND = "split_keyboard_click_sound";
-    public static final String KEY_REPEAT_DELAY = "split_keyboard_repeat_delay";
-    public static final String KEY_REPEAT_INTERVAL = "split_keyboard_repeat_interval";
     public static final String KEY_MODIFIER_MODE = "split_keyboard_modifier_mode";
     public static final String KEY_ONE_SHOT_MODIFIERS = "split_keyboard_one_shot_modifiers";
     public static final String KEY_FN_TAP_LOCK = "split_keyboard_fn_tap_lock";
@@ -51,14 +51,13 @@ public final class SplitKeyboardPreferences {
 
     public final boolean visible;
     public final boolean subDisplayMouseControls;
+    public final boolean mouseTouchCompatibility;
     public final boolean hideSubDisplayControlsUi;
     public final boolean showHangulLabels;
     public final boolean showShiftHangulLabels;
     public final boolean hapticEnabled;
     public final int hapticStrength;
     public final boolean clickSoundEnabled;
-    public final int repeatDelayMs;
-    public final int repeatIntervalMs;
     public final ModifierMode modifierMode;
     public final boolean oneShotModifiers;
     public final boolean fnTapLockEnabled;
@@ -75,6 +74,8 @@ public final class SplitKeyboardPreferences {
         visible = preferences.getBoolean(KEY_VISIBLE, false);
         subDisplayMouseControls = preferences.getBoolean(
                 KEY_SUB_DISPLAY_MOUSE_CONTROLS, false);
+        mouseTouchCompatibility = preferences.getBoolean(
+                KEY_MOUSE_TOUCH_COMPATIBILITY, false);
         hideSubDisplayControlsUi = preferences.getBoolean(
                 KEY_HIDE_SUB_DISPLAY_CONTROLS_UI, false);
         showHangulLabels = preferences.getBoolean(KEY_HANGUL_LABELS, true);
@@ -82,8 +83,6 @@ public final class SplitKeyboardPreferences {
         hapticEnabled = preferences.getBoolean(KEY_HAPTIC, true);
         hapticStrength = clamp(preferences.getInt(KEY_HAPTIC_STRENGTH, 96), 1, 255);
         clickSoundEnabled = preferences.getBoolean(KEY_CLICK_SOUND, false);
-        repeatDelayMs = clamp(preferences.getInt(KEY_REPEAT_DELAY, 400), 250, 700);
-        repeatIntervalMs = clamp(preferences.getInt(KEY_REPEAT_INTERVAL, 45), 25, 120);
         modifierMode = ModifierMode.parse(preferences.getString(
                 KEY_MODIFIER_MODE, ModifierMode.TOGGLE_AND_HOLD.name()));
         oneShotModifiers = preferences.getBoolean(KEY_ONE_SHOT_MODIFIERS, true);

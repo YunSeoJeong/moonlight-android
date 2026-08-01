@@ -300,6 +300,11 @@
     <string name="summary_split_keyboard_visible">다음 세션 시작 시 적용되어 세션이 끝날 때까지 유지됩니다. 가상 게임패드와 함께 사용할 수 있습니다.</string>
     <string name="title_split_keyboard_sub_display_mouse_controls">서브디스플레이 마우스 조작 사용</string>
     <string name="summary_split_keyboard_sub_display_mouse_controls">서브디스플레이에 LB/LT/RB/RT 터치 영역을 사용합니다. LB와 LT는 각각 좌클릭과 우클릭이며, RT를 누르는 동안 키보드 오른쪽 절반을 마우스 트랙패드로, RB를 누르는 동안 상하좌우 스크롤 패드로 사용합니다. 듀얼 스크린 가상 게임패드보다 우선 적용됩니다.</string>
+    <string name="title_split_keyboard_mouse_touch_compatibility">터치 호환 마우스 입력</string>
+    <string name="summary_split_keyboard_mouse_touch_compatibility">가상 키보드 중앙 상단에 세션용 호환 모드 버튼을 추가합니다. 버튼으로 활성화하면 마우스 버튼, 스크롤 또는 키보드 입력 전에 취소되는 단일 터치로 호스트 커서 위치를 동기화합니다.</string>
+    <string name="split_keyboard_compatibility_mode">호환 모드</string>
+    <string name="split_keyboard_compatibility_on">켜짐</string>
+    <string name="split_keyboard_compatibility_off">꺼짐</string>
     <string name="title_split_keyboard_hide_sub_display_controls_ui">서브디스플레이 조작 UI 숨기기</string>
     <string name="summary_split_keyboard_hide_sub_display_controls_ui">네 터치 영역과 조작 기능은 유지하면서 버튼 대신 검은 화면을 표시합니다.</string>
     <string name="split_keyboard_sub_control_left_click">좌클릭</string>
@@ -314,8 +319,6 @@
     <string name="title_split_keyboard_haptic">키 진동</string>
     <string name="title_split_keyboard_haptic_strength">진동 강도</string>
     <string name="title_split_keyboard_click_sound">키 입력 소리</string>
-    <string name="title_split_keyboard_repeat_delay">키 반복 시작 시간</string>
-    <string name="title_split_keyboard_repeat_interval">키 반복 간격</string>
     <string name="title_split_keyboard_modifier_mode">조합키 동작</string>
     <string name="title_split_keyboard_one_shot">스마트 원샷 조합키</string>
     <string name="summary_split_keyboard_one_shot">한 번 누르면 다음 키에만 적용되고, 빠르게 두 번 누르면 고정됩니다.</string>

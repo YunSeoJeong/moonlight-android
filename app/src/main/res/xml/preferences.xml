@@ -1063,6 +1063,14 @@
         <CheckBoxPreference
             android:defaultValue="false"
             android:dependency="split_keyboard_sub_display_mouse_controls"
+            android:key="split_keyboard_mouse_touch_compatibility"
+            android:title="@string/title_split_keyboard_mouse_touch_compatibility"
+            android:summary="@string/summary_split_keyboard_mouse_touch_compatibility"
+            app:iconSpaceReserved="false" />
+
+        <CheckBoxPreference
+            android:defaultValue="false"
+            android:dependency="split_keyboard_sub_display_mouse_controls"
             android:key="split_keyboard_hide_sub_display_controls_ui"
             android:title="@string/title_split_keyboard_hide_sub_display_controls_ui"
             android:summary="@string/summary_split_keyboard_hide_sub_display_controls_ui"
@@ -1102,30 +1110,6 @@
             android:key="split_keyboard_click_sound"
             android:title="@string/title_split_keyboard_click_sound"
             app:iconSpaceReserved="false" />
-
-        <com.limelight.preferences.SeekBarPreference
-            android:defaultValue="400"
-            android:key="split_keyboard_repeat_delay"
-            android:max="700"
-            android:text=" ms"
-            android:title="@string/title_split_keyboard_repeat_delay"
-            app:iconSpaceReserved="false"
-            seekbar:divisor="1"
-            seekbar:keyStep="25"
-            seekbar:min="250"
-            seekbar:step="25" />
-
-        <com.limelight.preferences.SeekBarPreference
-            android:defaultValue="45"
-            android:key="split_keyboard_repeat_interval"
-            android:max="120"
-            android:text=" ms"
-            android:title="@string/title_split_keyboard_repeat_interval"
-            app:iconSpaceReserved="false"
-            seekbar:divisor="1"
-            seekbar:keyStep="5"
-            seekbar:min="25"
-            seekbar:step="5" />
 
         <ListPreference
             android:defaultValue="TOGGLE_AND_HOLD"

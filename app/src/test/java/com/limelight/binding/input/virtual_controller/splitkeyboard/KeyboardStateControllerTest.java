@@ -4,8 +4,6 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
 import android.content.Context;
-import android.os.Looper;
-
 import androidx.preference.PreferenceManager;
 import androidx.test.core.app.ApplicationProvider;
 
@@ -13,20 +11,16 @@ import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.robolectric.RobolectricTestRunner;
-import org.robolectric.Shadows;
 import org.robolectric.annotation.Config;
-import org.robolectric.annotation.LooperMode;
 
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Set;
-import java.util.concurrent.TimeUnit;
 
 @RunWith(RobolectricTestRunner.class)
 @Config(sdk = {33})
-@LooperMode(LooperMode.Mode.PAUSED)
 public class KeyboardStateControllerTest {
     private Context context;
     private FakeTransport transport;
@@ -50,18 +44,23 @@ public class KeyboardStateControllerTest {
 
         assertEquals("D:KEY_A:0", transport.events.get(0));
         assertEquals("U:KEY_A:0", transport.events.get(1));
+        assertEquals(1, transport.prepareCount);
+        assertEquals("P", transport.operations.get(0));
+        assertEquals("D:KEY_A", transport.operations.get(1));
     }
 
     @Test
     public void subDisplayUiCanBeHiddenWithoutDisablingControls() {
         PreferenceManager.getDefaultSharedPreferences(context).edit()
                 .putBoolean(SplitKeyboardPreferences.KEY_SUB_DISPLAY_MOUSE_CONTROLS, true)
+                .putBoolean(SplitKeyboardPreferences.KEY_MOUSE_TOUCH_COMPATIBILITY, true)
                 .putBoolean(SplitKeyboardPreferences.KEY_HIDE_SUB_DISPLAY_CONTROLS_UI, true)
                 .commit();
 
         SplitKeyboardPreferences preferences = new SplitKeyboardPreferences(context);
 
         assertTrue(preferences.subDisplayMouseControls);
+        assertTrue(preferences.mouseTouchCompatibility);
         assertTrue(preferences.hideSubDisplayControlsUi);
     }
 
@@ -126,17 +125,13 @@ public class KeyboardStateControllerTest {
     }
 
     @Test
-    public void repeatUsesOrderedUpDownPairsAfterConfiguredDelay() {
+    public void heldKeyStaysDownSoHostControlsKeyRepeat() {
         controller.pointerDown(1, find(LogicalKey.KEY_A), 0);
 
-        Shadows.shadowOf(Looper.getMainLooper()).idleFor(399, TimeUnit.MILLISECONDS);
         assertEquals(1, transport.events.size());
-        Shadows.shadowOf(Looper.getMainLooper()).idleFor(1, TimeUnit.MILLISECONDS);
-        assertEquals("U:KEY_A:0", transport.events.get(1));
-        assertEquals("D:KEY_A:0", transport.events.get(2));
 
-        controller.pointerUp(1, 500);
-        assertEquals("U:KEY_A:0", transport.events.get(3));
+        controller.pointerUp(1, 2_000);
+        assertEquals("U:KEY_A:0", transport.events.get(1));
     }
 
     @Test
@@ -285,6 +280,8 @@ public class KeyboardStateControllerTest {
 
     private static final class FakeTransport implements RemoteKeyboardTransport {
         final List<String> events = new ArrayList<>();
+        final List<String> operations = new ArrayList<>();
+        int prepareCount;
 
         @Override
         public boolean isConnected() {
@@ -292,14 +289,22 @@ public class KeyboardStateControllerTest {
         }
 
         @Override
+        public void prepareForKeyInput() {
+            prepareCount++;
+            operations.add("P");
+        }
+
+        @Override
         public boolean sendKeyDown(LogicalKey key, byte activeModifiers) {
             events.add("D:" + key + ":" + activeModifiers);
+            operations.add("D:" + key);
             return true;
         }
 
         @Override
         public boolean sendKeyUp(LogicalKey key, byte activeModifiers) {
             events.add("U:" + key + ":" + activeModifiers);
+            operations.add("U:" + key);
             return true;
         }
 

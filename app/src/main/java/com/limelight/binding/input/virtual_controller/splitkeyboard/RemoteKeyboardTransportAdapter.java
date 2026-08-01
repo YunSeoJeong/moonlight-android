@@ -15,6 +15,11 @@ public final class RemoteKeyboardTransportAdapter implements RemoteKeyboardTrans
     }
 
     @Override
+    public void prepareForKeyInput() {
+        SubDisplayKeyboardControlsSession.getInstance().prepareForRemoteInput();
+    }
+
+    @Override
     public boolean sendKeyDown(LogicalKey key, byte activeModifiers) {
         return game.sendVirtualKeyboardEvent(key.androidKeyCode, true, activeModifiers);
     }

@@ -2463,6 +2463,19 @@ public class Game extends AppCompatActivity implements SurfaceHolder.Callback,
         return true;
     }
 
+    public boolean sendSplitKeyboardTouchEvent(byte eventType, int pointerId,
+                                               float normalizedX, float normalizedY) {
+        if (!isSplitKeyboardMouseTransportConnected()) {
+            return false;
+        }
+        float x = Math.max(0f, Math.min(1f, normalizedX));
+        float y = Math.max(0f, Math.min(1f, normalizedY));
+        float pressure = eventType == MoonBridge.LI_TOUCH_EVENT_UP
+                || eventType == MoonBridge.LI_TOUCH_EVENT_CANCEL ? 0f : 1f;
+        return conn.sendTouchEvent(eventType, pointerId, x, y, pressure,
+                0f, 0f, MoonBridge.LI_ROT_UNKNOWN) != MoonBridge.LI_ERR_UNSUPPORTED;
+    }
+
     private static short clampSplitKeyboardMouseAmount(int amount) {
         return (short) Math.max(Short.MIN_VALUE, Math.min(Short.MAX_VALUE, amount));
     }

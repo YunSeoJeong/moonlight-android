@@ -28,4 +28,12 @@ public final class RemoteMouseTransportAdapter implements RemoteMouseTransport {
         return game != null && game.sendSplitKeyboardMouseScroll(
                 verticalAmount, horizontalAmount);
     }
+
+    @Override
+    public boolean sendTouchEvent(byte eventType, int pointerId, float normalizedX,
+                                  float normalizedY) {
+        Game game = Game.instance;
+        return game != null && game.sendSplitKeyboardTouchEvent(
+                eventType, pointerId, normalizedX, normalizedY);
+    }
 }

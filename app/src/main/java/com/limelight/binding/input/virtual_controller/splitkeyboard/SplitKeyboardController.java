@@ -17,6 +17,7 @@ public final class SplitKeyboardController {
             new RemoteKeyboardLayoutCalculator();
     private final KeyboardStateController stateController;
     private final SplitKeyboardView keyboardView;
+    private final SplitKeyboardCursorView cursorView;
     private final Runnable overlayLayoutChanged;
     private final View.OnLayoutChangeListener layoutChangeListener;
     private final View.OnLayoutChangeListener streamLayoutChangeListener;
@@ -41,8 +42,14 @@ public final class SplitKeyboardController {
         this.keyboardView = new SplitKeyboardView(game);
         this.keyboardView.bind(stateController, preferences);
         this.keyboardView.setVisibility(View.GONE);
+        this.cursorView = preferences.subDisplayMouseControls
+                && preferences.mouseTouchCompatibility
+                ? new SplitKeyboardCursorView(game) : null;
 
         root.addView(keyboardView, new FrameLayout.LayoutParams(1, 1));
+        if (cursorView != null) {
+            root.addView(cursorView, new FrameLayout.LayoutParams(1, 1));
+        }
 
         this.layoutChangeListener = (view, left, top, right, bottom,
                                      oldLeft, oldTop, oldRight, oldBottom) -> {
@@ -93,6 +100,9 @@ public final class SplitKeyboardController {
         root.removeOnLayoutChangeListener(layoutChangeListener);
         streamContainer.removeOnLayoutChangeListener(streamLayoutChangeListener);
         root.removeView(keyboardView);
+        if (cursorView != null) {
+            root.removeView(cursorView);
+        }
     }
 
     private void applyLayout() {
@@ -112,11 +122,18 @@ public final class SplitKeyboardController {
                 bounds.remoteRect.width(), bounds.remoteRect.height());
         applyFrame(backgroundTouchView, bounds.remoteRect.left, bounds.remoteRect.top,
                 bounds.remoteRect.width(), bounds.remoteRect.height());
+        if (cursorView != null) {
+            applyFrame(cursorView, bounds.remoteRect.left, bounds.remoteRect.top,
+                    bounds.remoteRect.width(), bounds.remoteRect.height());
+        }
 
         if (!bounds.keyboardRect.isEmpty()) {
             applyFrame(keyboardView, bounds.keyboardRect.left, bounds.keyboardRect.top,
                     bounds.keyboardRect.width(), bounds.keyboardRect.height());
             keyboardView.setVisibility(View.VISIBLE);
+            if (cursorView != null) {
+                cursorView.bringToFront();
+            }
             keyboardView.bringToFront();
         }
 
@@ -132,6 +149,9 @@ public final class SplitKeyboardController {
         overlayLayoutChanged.run();
         // The keyboard is added after virtual-gamepad elements, so keep its
         // reserved input area above those overlays.
+        if (cursorView != null) {
+            cursorView.bringToFront();
+        }
         keyboardView.bringToFront();
     }
 
@@ -147,6 +167,13 @@ public final class SplitKeyboardController {
         applyFrame(backgroundTouchView,
                 streamContainer.getLeft(), streamContainer.getTop(),
                 streamContainer.getWidth(), streamContainer.getHeight());
+        if (cursorView != null) {
+            applyFrame(cursorView,
+                    streamContainer.getLeft(), streamContainer.getTop(),
+                    streamContainer.getWidth(), streamContainer.getHeight());
+            cursorView.bringToFront();
+            keyboardView.bringToFront();
+        }
     }
 
     private void applyFrame(View view, int left, int top, int width, int height) {

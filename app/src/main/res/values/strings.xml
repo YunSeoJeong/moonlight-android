@@ -804,6 +804,11 @@
     <string name="summary_split_keyboard_visible">Applied when the next session starts and kept for the whole session. It can be enabled together with a virtual gamepad.</string>
     <string name="title_split_keyboard_sub_display_mouse_controls">Use mouse controls on the second screen</string>
     <string name="summary_split_keyboard_sub_display_mouse_controls">Enables four LB/LT/RB/RT touch regions on the second screen. LB and LT are left and right click. Hold RT to turn the keyboard’s right half into a mouse trackpad, or RB for four-way scrolling. This takes priority over the dual-screen virtual gamepad.</string>
+    <string name="title_split_keyboard_mouse_touch_compatibility">Touch-compatible mouse input</string>
+    <string name="summary_split_keyboard_mouse_touch_compatibility">Adds a session toggle at the top center of the virtual keyboard. When enabled there, a canceled single touch synchronizes the host cursor before mouse buttons, scrolling, or keyboard input.</string>
+    <string name="split_keyboard_compatibility_mode">COMPAT MODE</string>
+    <string name="split_keyboard_compatibility_on">ON</string>
+    <string name="split_keyboard_compatibility_off">OFF</string>
     <string name="title_split_keyboard_hide_sub_display_controls_ui">Hide the second-screen controls UI</string>
     <string name="summary_split_keyboard_hide_sub_display_controls_ui">Keeps all four touch regions active but displays a black screen instead of the controls.</string>
     <string name="split_keyboard_sub_control_left_click">LEFT CLICK</string>
@@ -817,8 +822,6 @@
     <string name="title_split_keyboard_haptic">Key haptics</string>
     <string name="title_split_keyboard_haptic_strength">Haptic strength</string>
     <string name="title_split_keyboard_click_sound">Key click sound</string>
-    <string name="title_split_keyboard_repeat_delay">Key repeat delay</string>
-    <string name="title_split_keyboard_repeat_interval">Key repeat interval</string>
     <string name="title_split_keyboard_modifier_mode">Modifier behavior</string>
     <string name="title_split_keyboard_one_shot">Smart one-shot modifiers</string>
     <string name="summary_split_keyboard_one_shot">Tap once for the next key only; double-tap quickly to keep the modifier locked.</string>

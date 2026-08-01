@@ -6,10 +6,13 @@ import static org.junit.Assert.assertTrue;
 
 import android.content.Context;
 import android.graphics.Rect;
+import android.view.MotionEvent;
 import android.view.View;
 
 import androidx.preference.PreferenceManager;
 import androidx.test.core.app.ApplicationProvider;
+
+import com.limelight.R;
 
 import org.junit.Before;
 import org.junit.Test;
@@ -23,17 +26,55 @@ import java.util.List;
 @RunWith(RobolectricTestRunner.class)
 @Config(sdk = {33})
 public class SplitKeyboardViewLayoutTest {
+    private Context context;
     private SplitKeyboardView keyboardView;
 
     @Before
     public void setUp() {
-        Context context = ApplicationProvider.getApplicationContext();
+        context = ApplicationProvider.getApplicationContext();
         PreferenceManager.getDefaultSharedPreferences(context).edit().clear().commit();
         SplitKeyboardPreferences preferences = new SplitKeyboardPreferences(context);
         KeyboardStateController stateController = new KeyboardStateController(
                 new ConnectedNoOpTransport(), preferences);
         keyboardView = new SplitKeyboardView(context);
         keyboardView.bind(stateController, preferences);
+    }
+
+    @Test
+    public void compatibilityPreferenceAddsTopCenterSessionToggle() {
+        PreferenceManager.getDefaultSharedPreferences(context).edit()
+                .putBoolean(SplitKeyboardPreferences.KEY_SUB_DISPLAY_MOUSE_CONTROLS, true)
+                .putBoolean(SplitKeyboardPreferences.KEY_MOUSE_TOUCH_COMPATIBILITY, true)
+                .commit();
+        SplitKeyboardPreferences preferences = new SplitKeyboardPreferences(context);
+        keyboardView = new SplitKeyboardView(context);
+        keyboardView.bind(new KeyboardStateController(
+                new ConnectedNoOpTransport(), preferences), preferences);
+        keyboardView.measure(
+                View.MeasureSpec.makeMeasureSpec(2160, View.MeasureSpec.EXACTLY),
+                View.MeasureSpec.makeMeasureSpec(641, View.MeasureSpec.EXACTLY));
+        keyboardView.layout(0, 0, 2160, 641);
+
+        assertEquals(SplitKeyboardLayout.KEY_COUNT + 1, keyboardView.getChildCount());
+        View toggle = keyboardView.getChildAt(SplitKeyboardLayout.KEY_COUNT);
+        assertTrue(toggle.getLeft() < 1080 && toggle.getRight() > 1080);
+        assertTrue(toggle.getTop() < keyboardView.getHeight() / 3);
+        assertTrue(toggle.getContentDescription().toString().contains(
+                context.getString(R.string.split_keyboard_compatibility_off)));
+
+        float x = (toggle.getLeft() + toggle.getRight()) / 2f;
+        float y = (toggle.getTop() + toggle.getBottom()) / 2f;
+        keyboardView.onTouchEvent(MotionEvent.obtain(
+                0, 0, MotionEvent.ACTION_DOWN, x, y, 0));
+        keyboardView.onTouchEvent(MotionEvent.obtain(
+                0, 10, MotionEvent.ACTION_UP, x, y, 0));
+
+        SubDisplayKeyboardControlsSession session =
+                SubDisplayKeyboardControlsSession.getInstance();
+        assertTrue(session.isTouchCompatibilityEnabled());
+        assertTrue(toggle.getContentDescription().toString().contains(
+                context.getString(R.string.split_keyboard_compatibility_on)));
+        session.setTouchCompatibilityEnabled(false);
     }
 
     @Test

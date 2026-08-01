@@ -1,8 +1,5 @@
 package com.limelight.binding.input.virtual_controller.splitkeyboard;
 
-import android.os.Handler;
-import android.os.Looper;
-
 import com.limelight.nvstream.input.KeyboardPacket;
 
 import java.util.ArrayList;
@@ -50,9 +47,7 @@ public final class KeyboardStateController {
 
     private final RemoteKeyboardTransport transport;
     private final SplitKeyboardPreferences preferences;
-    private final Handler handler = new Handler(Looper.getMainLooper());
     private final Map<Integer, PointerPress> pointers = new HashMap<>();
-    private final Map<Integer, Runnable> repeatRunnables = new HashMap<>();
     private final Map<Integer, LogicalKey> momentaryModifierPointers = new HashMap<>();
     private final Map<LogicalKey, Integer> holdCounts = new EnumMap<>(LogicalKey.class);
     private final Set<LogicalKey> remoteDown = EnumSet.noneOf(LogicalKey.class);
@@ -148,9 +143,6 @@ public final class KeyboardStateController {
                 holdCounts.remove(effectiveKey);
                 return false;
             }
-            if (spec.repeatable && effectiveKey.repeatable) {
-                scheduleRepeat(pointerId, effectiveKey);
-            }
         }
         notifyStateChanged();
         return true;
@@ -158,7 +150,6 @@ public final class KeyboardStateController {
 
     public void pointerUp(int pointerId, long eventTime) {
         PointerPress press = pointers.remove(pointerId);
-        cancelRepeat(pointerId);
         if (press == null) {
             return;
         }
@@ -211,10 +202,6 @@ public final class KeyboardStateController {
     }
 
     public void releaseAllPressedKeys(ReleaseReason reason) {
-        for (Runnable runnable : repeatRunnables.values()) {
-            handler.removeCallbacks(runnable);
-        }
-        repeatRunnables.clear();
         pointers.clear();
         holdCounts.clear();
         momentaryModifierPointers.clear();
@@ -393,7 +380,6 @@ public final class KeyboardStateController {
 
     private void cancelPointer(int pointerId) {
         PointerPress press = pointers.remove(pointerId);
-        cancelRepeat(pointerId);
         if (press == null) {
             return;
         }
@@ -454,46 +440,11 @@ public final class KeyboardStateController {
         fnOneShotConsumerPointer = null;
     }
 
-    private void scheduleRepeat(int pointerId, LogicalKey key) {
-        Runnable repeat = new Runnable() {
-            @Override
-            public void run() {
-                PointerPress current = pointers.get(pointerId);
-                if (current == null || current.effectiveKey != key || !remoteDown.contains(key)) {
-                    repeatRunnables.remove(pointerId);
-                    return;
-                }
-                if (!transport.isConnected()) {
-                    clearLocalStateAfterTransportFailure();
-                    return;
-                }
-
-                // Moonlight's keyboard packet has KEY_DOWN/KEY_UP only. Repeated
-                // input is represented as ordered up/down pairs, followed by the
-                // final KEY_UP when the pointer is released.
-                if (!transport.sendKeyUp(key, activeModifierMask())
-                        || !transport.sendKeyDown(key, activeModifierMask())) {
-                    clearLocalStateAfterTransportFailure();
-                    return;
-                }
-                handler.postDelayed(this, preferences.repeatIntervalMs);
-            }
-        };
-        repeatRunnables.put(pointerId, repeat);
-        handler.postDelayed(repeat, preferences.repeatDelayMs);
-    }
-
-    private void cancelRepeat(int pointerId) {
-        Runnable runnable = repeatRunnables.remove(pointerId);
-        if (runnable != null) {
-            handler.removeCallbacks(runnable);
-        }
-    }
-
     private boolean ensureKeyDown(LogicalKey key) {
         if (remoteDown.contains(key)) {
             return true;
         }
+        transport.prepareForKeyInput();
         remoteDown.add(key);
         if (!transport.sendKeyDown(key, activeModifierMask())) {
             remoteDown.remove(key);
@@ -543,6 +494,7 @@ public final class KeyboardStateController {
     private void sendTapChord(List<LogicalKey> chord) {
         List<LogicalKey> added = new ArrayList<>();
         byte modifiers = activeModifierMask();
+        transport.prepareForKeyInput();
         for (LogicalKey key : chord) {
             if (remoteDown.contains(key) || key.localOnly || !key.transportSupported) {
                 continue;
@@ -612,10 +564,6 @@ public final class KeyboardStateController {
     }
 
     private void clearLocalStateAfterTransportFailure() {
-        for (Runnable runnable : repeatRunnables.values()) {
-            handler.removeCallbacks(runnable);
-        }
-        repeatRunnables.clear();
         pointers.clear();
         holdCounts.clear();
         momentaryModifierPointers.clear();

@@ -37,6 +37,7 @@ public final class SplitKeyboardView extends ViewGroup
     private static final int TRACKPAD_ACCENT_COLOR = 0xFF3D78CC;
     private static final int TRACKPAD_TEXT_COLOR = 0xFF24262B;
     private static final int TRACKPAD_SECONDARY_TEXT_COLOR = 0xFF676B73;
+    private static final int COMPATIBILITY_ACTIVE_COLOR = 0xFFB8CAE2;
     private static final int TRACKPAD_SCROLL_FACTOR = 5;
 
     private final List<KeyboardRowSpec> rows = SplitKeyboardLayout.createRows();
@@ -54,6 +55,9 @@ public final class SplitKeyboardView extends ViewGroup
     private int trackpadPointerId = -1;
     private float lastTrackpadX;
     private float lastTrackpadY;
+    private CompatibilityToggleView compatibilityToggleView;
+    private int compatibilityTogglePointerId = -1;
+    private boolean compatibilityTogglePointerInside;
 
     public SplitKeyboardView(Context context) {
         this(context, null);
@@ -82,12 +86,18 @@ public final class SplitKeyboardView extends ViewGroup
         this.stateController = controller;
         this.preferences = preferences;
         controller.setListener(this);
+        setCompatibilityToggleVisible(preferences.subDisplayMouseControls
+                && preferences.mouseTouchCompatibility);
         if (subDisplayControlsSession != null) {
             subDisplayControlsSession.removeListener(this);
         }
+        SubDisplayKeyboardControlsSession.getInstance()
+                .setTouchCompatibilityEnabled(false);
         subDisplayControlsSession = preferences.subDisplayMouseControls
                 ? SubDisplayKeyboardControlsSession.getInstance() : null;
         if (subDisplayControlsSession != null) {
+            // The preference exposes the in-session button. Compatibility
+            // itself always starts disabled and is controlled by that button.
             subDisplayControlsSession.addListener(this);
             trackpadMode = subDisplayControlsSession.getTrackpadMode();
         }
@@ -152,6 +162,14 @@ public final class SplitKeyboardView extends ViewGroup
         }
         int availableRowHeight = Math.max(1,
                 height - outerPadding * 2 - keyGap * (rows.size() - 1));
+        if (compatibilityToggleView != null) {
+            int firstRowHeight = Math.max(1, Math.round(
+                    availableRowHeight * rows.get(0).heightWeight / totalHeightWeight));
+            int toggleInset = Math.max(keyGap, Math.round(centerGap * 0.08f));
+            compatibilityToggleView.layout(
+                    leftEnd + toggleInset, outerPadding,
+                    rightStart - toggleInset, outerPadding + firstRowHeight);
+        }
         float consumedWeight = 0f;
         int rowTop = outerPadding;
 
@@ -231,6 +249,7 @@ public final class SplitKeyboardView extends ViewGroup
             case MotionEvent.ACTION_CANCEL:
                 stateController.releaseAllPressedKeys(ReleaseReason.ACTION_CANCEL);
                 resetTrackpadPointer();
+                resetCompatibilityTogglePointer();
                 updateVisualStates();
                 return true;
 
@@ -254,6 +273,7 @@ public final class SplitKeyboardView extends ViewGroup
             subDisplayControlsSession.removeListener(this);
         }
         resetTrackpadPointer();
+        resetCompatibilityTogglePointer();
         super.onDetachedFromWindow();
     }
 
@@ -275,6 +295,10 @@ public final class SplitKeyboardView extends ViewGroup
             resetTrackpadPointer();
         }
         trackpadMode = newMode;
+        if (compatibilityToggleView != null && subDisplayControlsSession != null) {
+            compatibilityToggleView.setActive(
+                    subDisplayControlsSession.isTouchCompatibilityEnabled());
+        }
         invalidate();
     }
 
@@ -291,6 +315,26 @@ public final class SplitKeyboardView extends ViewGroup
             if (row.centerKey != null) {
                 addKeyCap(row.centerKey);
             }
+        }
+    }
+
+    private void setCompatibilityToggleVisible(boolean visible) {
+        if (visible && compatibilityToggleView == null) {
+            compatibilityToggleView = new CompatibilityToggleView(getContext());
+            compatibilityToggleView.setOnClickListener(view -> {
+                if (subDisplayControlsSession == null) {
+                    return;
+                }
+                feedback();
+                subDisplayControlsSession.setTouchCompatibilityEnabled(
+                        !subDisplayControlsSession.isTouchCompatibilityEnabled());
+            });
+            addView(compatibilityToggleView);
+        }
+        else if (!visible && compatibilityToggleView != null) {
+            resetCompatibilityTogglePointer();
+            removeView(compatibilityToggleView);
+            compatibilityToggleView = null;
         }
     }
 
@@ -342,6 +386,14 @@ public final class SplitKeyboardView extends ViewGroup
 
     private void handlePointerDownOrTrackpad(MotionEvent event, int index) {
         int pointerId = event.getPointerId(index);
+        if (compatibilityToggleView != null
+                && compatibilityTogglePointerId == -1
+                && isInsideCompatibilityToggle(event.getX(index), event.getY(index))) {
+            compatibilityTogglePointerId = pointerId;
+            compatibilityTogglePointerInside = true;
+            compatibilityToggleView.setPressed(true);
+            return;
+        }
         if (trackpadMode != TrackpadMode.NONE && event.getX(index) >= getWidth() / 2f) {
             if (trackpadPointerId == -1) {
                 trackpadPointerId = pointerId;
@@ -366,6 +418,15 @@ public final class SplitKeyboardView extends ViewGroup
 
     private void handlePointerUpOrTrackpad(MotionEvent event, int index) {
         int pointerId = event.getPointerId(index);
+        if (pointerId == compatibilityTogglePointerId) {
+            boolean performClick = compatibilityTogglePointerInside
+                    && isInsideCompatibilityToggle(event.getX(index), event.getY(index));
+            resetCompatibilityTogglePointer();
+            if (performClick && compatibilityToggleView != null) {
+                compatibilityToggleView.performClick();
+            }
+            return;
+        }
         if (pointerId == trackpadPointerId) {
             resetTrackpadPointer();
             return;
@@ -374,6 +435,15 @@ public final class SplitKeyboardView extends ViewGroup
     }
 
     private void handleTrackpadMove(MotionEvent event) {
+        if (compatibilityTogglePointerId != -1 && compatibilityToggleView != null) {
+            int toggleIndex = event.findPointerIndex(compatibilityTogglePointerId);
+            boolean inside = toggleIndex >= 0 && isInsideCompatibilityToggle(
+                    event.getX(toggleIndex), event.getY(toggleIndex));
+            if (compatibilityTogglePointerInside != inside) {
+                compatibilityTogglePointerInside = inside;
+                compatibilityToggleView.setPressed(inside);
+            }
+        }
         if (trackpadPointerId == -1 || subDisplayControlsSession == null) {
             return;
         }
@@ -407,6 +477,22 @@ public final class SplitKeyboardView extends ViewGroup
         trackpadPointerId = -1;
         lastTrackpadX = 0;
         lastTrackpadY = 0;
+    }
+
+    private boolean isInsideCompatibilityToggle(float x, float y) {
+        return compatibilityToggleView != null
+                && x >= compatibilityToggleView.getLeft()
+                && x < compatibilityToggleView.getRight()
+                && y >= compatibilityToggleView.getTop()
+                && y < compatibilityToggleView.getBottom();
+    }
+
+    private void resetCompatibilityTogglePointer() {
+        compatibilityTogglePointerId = -1;
+        compatibilityTogglePointerInside = false;
+        if (compatibilityToggleView != null) {
+            compatibilityToggleView.setPressed(false);
+        }
     }
 
     private void drawTrackpad(Canvas canvas) {
@@ -516,6 +602,9 @@ public final class SplitKeyboardView extends ViewGroup
     private KeyCapView findKeyCap(float x, float y) {
         for (int i = getChildCount() - 1; i >= 0; i--) {
             View child = getChildAt(i);
+            if (!(child instanceof KeyCapView)) {
+                continue;
+            }
             if (child.getVisibility() == VISIBLE
                     && x >= child.getLeft() && x < child.getRight()
                     && y >= child.getTop() && y < child.getBottom()
@@ -568,6 +657,87 @@ public final class SplitKeyboardView extends ViewGroup
             keyCap.setContentDescription(description);
         }
         invalidate();
+    }
+
+    private final class CompatibilityToggleView extends View {
+        private final Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
+        private final RectF buttonRect = new RectF();
+        private boolean active;
+
+        CompatibilityToggleView(Context context) {
+            super(context);
+            setWillNotDraw(false);
+            setClickable(true);
+            setFocusable(true);
+            setImportantForAccessibility(IMPORTANT_FOR_ACCESSIBILITY_YES);
+            updateContentDescription();
+        }
+
+        void setActive(boolean active) {
+            if (this.active == active) {
+                return;
+            }
+            this.active = active;
+            updateContentDescription();
+            invalidate();
+        }
+
+        @Override
+        protected void onDraw(Canvas canvas) {
+            super.onDraw(canvas);
+            float inset = Math.max(0.75f, density * (isPressed() ? 1.3f : 0.65f));
+            float pressedOffset = isPressed() ? density : 0f;
+            float radius = clamp(getHeight() * 0.17f, 5f * density, 11f * density);
+
+            buttonRect.set(inset, inset + 1.5f * density,
+                    getWidth() - inset, getHeight() - inset);
+            paint.setStyle(Paint.Style.FILL);
+            paint.setColor(TRACKPAD_SHADOW_COLOR);
+            canvas.drawRoundRect(buttonRect, radius, radius, paint);
+
+            buttonRect.set(inset, inset + pressedOffset,
+                    getWidth() - inset,
+                    getHeight() - inset - 1.4f * density + pressedOffset);
+            paint.setColor(active ? COMPATIBILITY_ACTIVE_COLOR
+                    : isPressed() ? TRACKPAD_KEY_COLOR : TRACKPAD_BADGE_COLOR);
+            canvas.drawRoundRect(buttonRect, radius, radius, paint);
+
+            paint.setStyle(Paint.Style.STROKE);
+            paint.setStrokeWidth(active ? Math.max(1.5f, density)
+                    : Math.max(0.6f, density * 0.45f));
+            paint.setColor(active ? TRACKPAD_ACCENT_COLOR : TRACKPAD_BORDER_COLOR);
+            canvas.drawRoundRect(buttonRect, radius, radius, paint);
+
+            drawToggleText(canvas, getResources().getString(
+                            R.string.split_keyboard_compatibility_mode),
+                    getHeight() * 0.37f, 0.18f, TRACKPAD_TEXT_COLOR);
+            drawToggleText(canvas, getResources().getString(active
+                            ? R.string.split_keyboard_compatibility_on
+                            : R.string.split_keyboard_compatibility_off),
+                    getHeight() * 0.69f, 0.23f,
+                    active ? TRACKPAD_ACCENT_COLOR : TRACKPAD_SECONDARY_TEXT_COLOR);
+        }
+
+        private void drawToggleText(Canvas canvas, String text, float centerY,
+                                    float heightFraction, int color) {
+            paint.setStyle(Paint.Style.FILL);
+            paint.setColor(color);
+            paint.setTextAlign(Paint.Align.CENTER);
+            paint.setTypeface(android.graphics.Typeface.create(
+                    "sans-serif-medium", android.graphics.Typeface.NORMAL));
+            paint.setTextSize(Math.max(8f * density, getHeight() * heightFraction));
+            Paint.FontMetrics metrics = paint.getFontMetrics();
+            float baseline = centerY - (metrics.ascent + metrics.descent) / 2f;
+            canvas.drawText(text, getWidth() / 2f, baseline, paint);
+        }
+
+        private void updateContentDescription() {
+            setContentDescription(getResources().getString(
+                    R.string.split_keyboard_compatibility_mode)
+                    + " " + getResources().getString(active
+                    ? R.string.split_keyboard_compatibility_on
+                    : R.string.split_keyboard_compatibility_off));
+        }
     }
 
     private void feedback() {

@@ -8,4 +8,7 @@ public interface RemoteMouseTransport {
     boolean sendMouseMove(int deltaX, int deltaY);
 
     boolean sendScroll(int verticalAmount, int horizontalAmount);
+
+    boolean sendTouchEvent(byte eventType, int pointerId, float normalizedX,
+                           float normalizedY);
 }

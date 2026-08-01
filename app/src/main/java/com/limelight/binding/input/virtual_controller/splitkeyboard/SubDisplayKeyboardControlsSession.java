@@ -1,6 +1,7 @@
 package com.limelight.binding.input.virtual_controller.splitkeyboard;
 
 import com.limelight.nvstream.input.MouseButtonPacket;
+import com.limelight.nvstream.jni.MoonBridge;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -14,6 +15,8 @@ import java.util.Set;
  * prevents a surviving secondary-display activity from retaining a stale connection.
  */
 public final class SubDisplayKeyboardControlsSession {
+    private static final int CURSOR_SYNC_POINTER_ID = 0x5A000001;
+
     public enum Control {
         LB,
         LT,
@@ -54,6 +57,12 @@ public final class SubDisplayKeyboardControlsSession {
             new IdentityHashMap<>());
     private long nextOrder;
     private TrackpadMode trackpadMode = TrackpadMode.NONE;
+    private boolean touchCompatibilityEnabled;
+    private int cursorWidth;
+    private int cursorHeight;
+    private float cursorX = 0.5f;
+    private float cursorY = 0.5f;
+    private boolean scrollCursorSynced;
 
     public static SubDisplayKeyboardControlsSession getInstance() {
         return INSTANCE;
@@ -73,6 +82,36 @@ public final class SubDisplayKeyboardControlsSession {
         listeners.remove(listener);
     }
 
+    public void setTouchCompatibilityEnabled(boolean enabled) {
+        if (touchCompatibilityEnabled == enabled) {
+            return;
+        }
+        reset();
+        touchCompatibilityEnabled = enabled;
+        notifyListeners();
+    }
+
+    public boolean isTouchCompatibilityEnabled() {
+        return touchCompatibilityEnabled;
+    }
+
+    public void setCursorBounds(int width, int height) {
+        if (width <= 0 || height <= 0) {
+            return;
+        }
+        cursorWidth = width;
+        cursorHeight = height;
+        notifyListeners();
+    }
+
+    public float getCursorX() {
+        return cursorX * cursorWidth;
+    }
+
+    public float getCursorY() {
+        return cursorY * cursorHeight;
+    }
+
     public boolean pointerDown(Object owner, int pointerId, Control control) {
         if (owner == null || control == null || findPress(owner, pointerId) != null
                 || !transport.isConnected()) {
@@ -80,7 +119,7 @@ public final class SubDisplayKeyboardControlsSession {
         }
 
         if (isMouseButton(control) && !isPressed(control)
-                && !transport.sendMouseButton(mouseButtonFor(control), true)) {
+                && !sendButton(control, true)) {
             return false;
         }
 
@@ -98,7 +137,7 @@ public final class SubDisplayKeyboardControlsSession {
 
         presses.remove(press);
         if (isMouseButton(press.control) && !isPressed(press.control)) {
-            transport.sendMouseButton(mouseButtonFor(press.control), false);
+            sendButton(press.control, false);
         }
         updateTrackpadMode();
         notifyListeners();
@@ -119,10 +158,10 @@ public final class SubDisplayKeyboardControlsSession {
         }
 
         if (hadLeft && !isPressed(Control.LB)) {
-            transport.sendMouseButton(MouseButtonPacket.BUTTON_LEFT, false);
+            sendButton(Control.LB, false);
         }
         if (hadRight && !isPressed(Control.LT)) {
-            transport.sendMouseButton(MouseButtonPacket.BUTTON_RIGHT, false);
+            sendButton(Control.LT, false);
         }
         updateTrackpadMode();
         notifyListeners();
@@ -135,11 +174,12 @@ public final class SubDisplayKeyboardControlsSession {
         boolean changed = !presses.isEmpty() || trackpadMode != TrackpadMode.NONE;
         presses.clear();
         trackpadMode = TrackpadMode.NONE;
+        scrollCursorSynced = false;
         if (hadLeft) {
-            transport.sendMouseButton(MouseButtonPacket.BUTTON_LEFT, false);
+            sendButton(Control.LB, false);
         }
         if (hadRight) {
-            transport.sendMouseButton(MouseButtonPacket.BUTTON_RIGHT, false);
+            sendButton(Control.LT, false);
         }
         if (changed) {
             notifyListeners();
@@ -163,6 +203,15 @@ public final class SubDisplayKeyboardControlsSession {
         if (trackpadMode != TrackpadMode.MOUSE || !transport.isConnected()) {
             return false;
         }
+        if (touchCompatibilityEnabled) {
+            if (!hasCursorBounds()) {
+                return false;
+            }
+            cursorX = clamp01(cursorX + deltaX / (float) cursorWidth);
+            cursorY = clamp01(cursorY + deltaY / (float) cursorHeight);
+            notifyListeners();
+            return true;
+        }
         return transport.sendMouseMove(deltaX, deltaY);
     }
 
@@ -170,7 +219,20 @@ public final class SubDisplayKeyboardControlsSession {
         if (trackpadMode != TrackpadMode.SCROLL || !transport.isConnected()) {
             return false;
         }
+        if (touchCompatibilityEnabled) {
+            if (!scrollCursorSynced) {
+                prepareForRemoteInput();
+                scrollCursorSynced = true;
+            }
+        }
         return transport.sendScroll(verticalAmount, horizontalAmount);
+    }
+
+    /** Synchronizes the host cursor before a separate mouse or keyboard packet is sent. */
+    public void prepareForRemoteInput() {
+        if (touchCompatibilityEnabled && transport.isConnected() && hasCursorBounds()) {
+            syncRemoteCursorWithTouch();
+        }
     }
 
     private Press findPress(Object owner, int pointerId) {
@@ -183,6 +245,7 @@ public final class SubDisplayKeyboardControlsSession {
     }
 
     private void updateTrackpadMode() {
+        TrackpadMode oldMode = trackpadMode;
         Press newestTrigger = null;
         for (Press press : presses) {
             if ((press.control == Control.RB || press.control == Control.RT)
@@ -193,6 +256,45 @@ public final class SubDisplayKeyboardControlsSession {
         trackpadMode = newestTrigger == null ? TrackpadMode.NONE
                 : newestTrigger.control == Control.RT
                 ? TrackpadMode.MOUSE : TrackpadMode.SCROLL;
+        if (oldMode != trackpadMode) {
+            scrollCursorSynced = false;
+        }
+    }
+
+    private boolean sendButton(Control control, boolean down) {
+        if (down) {
+            prepareForRemoteInput();
+        }
+        return transport.sendMouseButton(mouseButtonFor(control), down);
+    }
+
+    private void syncRemoteCursorWithTouch() {
+        if (!sendTouch(MoonBridge.LI_TOUCH_EVENT_DOWN,
+                CURSOR_SYNC_POINTER_ID, cursorX, cursorY)) {
+            return;
+        }
+        // Cancel instead of lifting so this touch only updates the absolute
+        // cursor position and cannot complete as a tap or drag action.
+        sendTouch(MoonBridge.LI_TOUCH_EVENT_CANCEL,
+                CURSOR_SYNC_POINTER_ID, 0, 0);
+    }
+
+    private boolean sendTouch(byte eventType, int pointerId, float normalizedX,
+                              float normalizedY) {
+        return transport.sendTouchEvent(eventType, pointerId,
+                clamp01(normalizedX), clamp01(normalizedY));
+    }
+
+    private boolean hasCursorBounds() {
+        return cursorWidth > 0 && cursorHeight > 0;
+    }
+
+    private static float clamp01(float value) {
+        return clamp(value, 0f, 1f);
+    }
+
+    private static float clamp(float value, float min, float max) {
+        return Math.max(min, Math.min(max, value));
     }
 
     private static boolean isMouseButton(Control control) {
