@@ -16,6 +16,12 @@ public final class SplitKeyboardPreferences {
             "split_keyboard_sub_display_mouse_controls";
     public static final String KEY_MOUSE_TOUCH_COMPATIBILITY =
             "split_keyboard_mouse_touch_compatibility";
+    public static final String KEY_TRACKPAD_MOUSE_SENSITIVITY =
+            "split_keyboard_trackpad_mouse_sensitivity";
+    public static final String KEY_COMPATIBILITY_MOUSE_SENSITIVITY =
+            "split_keyboard_compatibility_mouse_sensitivity";
+    public static final String KEY_TRACKPAD_SCROLL_SENSITIVITY =
+            "split_keyboard_trackpad_scroll_sensitivity";
     public static final String KEY_HIDE_SUB_DISPLAY_CONTROLS_UI =
             "split_keyboard_hide_sub_display_controls_ui";
     public static final String KEY_HANGUL_LABELS = "split_keyboard_hangul_labels";
@@ -52,6 +58,9 @@ public final class SplitKeyboardPreferences {
     public final boolean visible;
     public final boolean subDisplayMouseControls;
     public final boolean mouseTouchCompatibility;
+    public final int trackpadMouseSensitivityPercent;
+    public final int compatibilityMouseSensitivityPercent;
+    public final int trackpadScrollSensitivityPercent;
     public final boolean hideSubDisplayControlsUi;
     public final boolean showHangulLabels;
     public final boolean showShiftHangulLabels;
@@ -76,6 +85,12 @@ public final class SplitKeyboardPreferences {
                 KEY_SUB_DISPLAY_MOUSE_CONTROLS, false);
         mouseTouchCompatibility = preferences.getBoolean(
                 KEY_MOUSE_TOUCH_COMPATIBILITY, false);
+        trackpadMouseSensitivityPercent = clamp(preferences.getInt(
+                KEY_TRACKPAD_MOUSE_SENSITIVITY, 100), 10, 300);
+        compatibilityMouseSensitivityPercent = clamp(preferences.getInt(
+                KEY_COMPATIBILITY_MOUSE_SENSITIVITY, 100), 10, 300);
+        trackpadScrollSensitivityPercent = clamp(preferences.getInt(
+                KEY_TRACKPAD_SCROLL_SENSITIVITY, 100), 10, 300);
         hideSubDisplayControlsUi = preferences.getBoolean(
                 KEY_HIDE_SUB_DISPLAY_CONTROLS_UI, false);
         showHangulLabels = preferences.getBoolean(KEY_HANGUL_LABELS, true);

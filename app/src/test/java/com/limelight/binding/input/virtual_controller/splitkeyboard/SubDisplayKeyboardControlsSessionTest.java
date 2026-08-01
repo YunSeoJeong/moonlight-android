@@ -63,10 +63,37 @@ public class SubDisplayKeyboardControlsSessionTest {
 
         session.pointerDown(owner, 2, Control.RB);
         assertFalse(session.sendTrackpadMove(1, 1));
-        assertTrue(session.sendTrackpadScroll(-10, 15));
+        assertTrue(session.sendTrackpadScroll(3, -2));
 
         assertEquals("M:4:-3", transport.events.get(0));
-        assertEquals("S:-10:15", transport.events.get(1));
+        assertEquals("S:-10:-15", transport.events.get(1));
+    }
+
+    @Test
+    public void normalAndCompatibilityModesUseSeparateMouseSensitivities() {
+        session.setInputSensitivities(200, 50, 50);
+        session.pointerDown(owner, 1, Control.RT);
+
+        assertTrue(session.sendTrackpadMove(4, -3));
+        assertEquals("M:8:-6", transport.events.get(0));
+
+        session.setCursorBounds(1_000, 500);
+        session.setTouchCompatibilityEnabled(true);
+        session.pointerDown(owner, 2, Control.RT);
+        assertTrue(session.sendTrackpadMove(50, -25));
+
+        assertEquals(525f, session.getCursorX(), 0.01f);
+        assertEquals(237.5f, session.getCursorY(), 0.01f);
+    }
+
+    @Test
+    public void scrollSensitivityKeepsCorrectedHorizontalDirection() {
+        session.setInputSensitivities(100, 100, 50);
+        session.pointerDown(owner, 1, Control.RB);
+
+        assertTrue(session.sendTrackpadScroll(4, -6));
+
+        assertEquals("S:-15:-10", transport.events.get(0));
     }
 
     @Test
@@ -135,8 +162,8 @@ public class SubDisplayKeyboardControlsSessionTest {
         assertEquals(2, transport.touchTypes.size());
         assertEquals(MoonBridge.LI_TOUCH_EVENT_DOWN, transport.touchTypes.get(0).byteValue());
         assertEquals(MoonBridge.LI_TOUCH_EVENT_CANCEL, transport.touchTypes.get(1).byteValue());
-        assertEquals("S:20:-10", transport.events.get(2));
-        assertEquals("S:5:2", transport.events.get(3));
+        assertEquals("S:-50:-100", transport.events.get(2));
+        assertEquals("S:10:-25", transport.events.get(3));
     }
 
     private static final class FakeMouseTransport implements RemoteMouseTransport {

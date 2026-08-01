@@ -38,7 +38,6 @@ public final class SplitKeyboardView extends ViewGroup
     private static final int TRACKPAD_TEXT_COLOR = 0xFF24262B;
     private static final int TRACKPAD_SECONDARY_TEXT_COLOR = 0xFF676B73;
     private static final int COMPATIBILITY_ACTIVE_COLOR = 0xFFB8CAE2;
-    private static final int TRACKPAD_SCROLL_FACTOR = 5;
 
     private final List<KeyboardRowSpec> rows = SplitKeyboardLayout.createRows();
     private final List<KeyCapView> keyCaps = new ArrayList<>();
@@ -55,6 +54,8 @@ public final class SplitKeyboardView extends ViewGroup
     private int trackpadPointerId = -1;
     private float lastTrackpadX;
     private float lastTrackpadY;
+    private float trackpadLeft;
+    private float keyHitSlop;
     private CompatibilityToggleView compatibilityToggleView;
     private int compatibilityTogglePointerId = -1;
     private boolean compatibilityTogglePointerInside;
@@ -99,6 +100,10 @@ public final class SplitKeyboardView extends ViewGroup
             // The preference exposes the in-session button. Compatibility
             // itself always starts disabled and is controlled by that button.
             subDisplayControlsSession.addListener(this);
+            subDisplayControlsSession.setInputSensitivities(
+                    preferences.trackpadMouseSensitivityPercent,
+                    preferences.compatibilityMouseSensitivityPercent,
+                    preferences.trackpadScrollSensitivityPercent);
             trackpadMode = subDisplayControlsSession.getTrackpadMode();
         }
         else {
@@ -131,6 +136,7 @@ public final class SplitKeyboardView extends ViewGroup
 
         int keyGap = Math.max(1, Math.round(
                 (preferences != null ? preferences.keyGapDp : 2) * density));
+        keyHitSlop = keyGap / 2f + 0.5f;
         int outerPadding = Math.max(keyGap, Math.round(Math.min(width, height) * 0.008f));
         int centerGapPercent = preferences != null ? preferences.centerGapPercent : 20;
         int centerGap = Math.round(width * centerGapPercent / 100f);
@@ -145,6 +151,7 @@ public final class SplitKeyboardView extends ViewGroup
         int leftStart = contentLeft;
         int leftEnd = leftStart + leftWidth;
         int rightStart = leftEnd + centerGap;
+        trackpadLeft = rightStart;
         int rightEnd = contentRight;
         float maxLeftUnits = 1f;
         float maxRightUnits = 1f;
@@ -394,7 +401,8 @@ public final class SplitKeyboardView extends ViewGroup
             compatibilityToggleView.setPressed(true);
             return;
         }
-        if (trackpadMode != TrackpadMode.NONE && event.getX(index) >= getWidth() / 2f) {
+        if (trackpadMode != TrackpadMode.NONE
+                && event.getX(index) >= getTrackpadLeft()) {
             if (trackpadPointerId == -1) {
                 trackpadPointerId = pointerId;
                 lastTrackpadX = event.getX(index);
@@ -467,9 +475,7 @@ public final class SplitKeyboardView extends ViewGroup
             subDisplayControlsSession.sendTrackpadMove(deltaX, deltaY);
         }
         else if (trackpadMode == TrackpadMode.SCROLL) {
-            subDisplayControlsSession.sendTrackpadScroll(
-                    deltaY * TRACKPAD_SCROLL_FACTOR,
-                    deltaX * TRACKPAD_SCROLL_FACTOR);
+            subDisplayControlsSession.sendTrackpadScroll(deltaX, deltaY);
         }
     }
 
@@ -496,7 +502,7 @@ public final class SplitKeyboardView extends ViewGroup
     }
 
     private void drawTrackpad(Canvas canvas) {
-        float left = getWidth() / 2f;
+        float left = getTrackpadLeft();
         backgroundPaint.setStyle(Paint.Style.FILL);
         backgroundPaint.setColor(BACKGROUND_COLOR);
         canvas.drawRect(left, 0, getWidth(), getHeight(), backgroundPaint);
@@ -613,7 +619,33 @@ public final class SplitKeyboardView extends ViewGroup
                 return (KeyCapView) child;
             }
         }
-        return null;
+
+        // Preserve the visual spacing while assigning every pixel in the
+        // narrow inter-key gutters to the nearest key.
+        KeyCapView nearest = null;
+        float nearestDistanceSquared = Float.MAX_VALUE;
+        for (int i = getChildCount() - 1; i >= 0; i--) {
+            View child = getChildAt(i);
+            if (!(child instanceof KeyCapView) || child.getVisibility() != VISIBLE) {
+                continue;
+            }
+            KeyCapView keyCap = (KeyCapView) child;
+            float localX = x - child.getLeft();
+            float localY = y - child.getTop();
+            if (!keyCap.isWithinExpandedTouchBounds(localX, localY, keyHitSlop)) {
+                continue;
+            }
+            float distanceSquared = keyCap.distanceSquaredToTouchBounds(localX, localY);
+            if (distanceSquared < nearestDistanceSquared) {
+                nearest = keyCap;
+                nearestDistanceSquared = distanceSquared;
+            }
+        }
+        return nearest;
+    }
+
+    private float getTrackpadLeft() {
+        return trackpadLeft > 0f ? trackpadLeft : getWidth() / 2f;
     }
 
     private boolean isEffectiveKeyEnabled(KeySpec spec) {
@@ -837,6 +869,44 @@ public final class SplitKeyboardView extends ViewGroup
             return !isSplitSpace()
                     || x < splitLeftEnd
                     || x >= splitRightStart;
+        }
+
+        boolean isWithinExpandedTouchBounds(float x, float y, float expansion) {
+            if (isSplitSpace()) {
+                return isWithinExpandedRect(x, y, 0, 0,
+                        splitLeftEnd, getHeight(), expansion)
+                        || isWithinExpandedRect(x, y, splitRightStart, 0,
+                        getWidth(), getHeight(), expansion);
+            }
+            return isWithinExpandedRect(x, y, 0, 0,
+                    getWidth(), getHeight(), expansion);
+        }
+
+        float distanceSquaredToTouchBounds(float x, float y) {
+            if (isSplitSpace()) {
+                return Math.min(distanceSquaredToRect(x, y, 0, 0,
+                                splitLeftEnd, getHeight()),
+                        distanceSquaredToRect(x, y, splitRightStart, 0,
+                                getWidth(), getHeight()));
+            }
+            return distanceSquaredToRect(x, y, 0, 0,
+                    getWidth(), getHeight());
+        }
+
+        private boolean isWithinExpandedRect(float x, float y,
+                                             float left, float top,
+                                             float right, float bottom,
+                                             float expansion) {
+            return x >= left - expansion && x <= right + expansion
+                    && y >= top - expansion && y <= bottom + expansion;
+        }
+
+        private float distanceSquaredToRect(float x, float y,
+                                            float left, float top,
+                                            float right, float bottom) {
+            float deltaX = x < left ? left - x : x > right ? x - right : 0f;
+            float deltaY = y < top ? top - y : y > bottom ? y - bottom : 0f;
+            return deltaX * deltaX + deltaY * deltaY;
         }
 
         private boolean isSplitSpace() {

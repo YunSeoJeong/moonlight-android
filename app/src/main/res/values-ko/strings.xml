@@ -307,6 +307,12 @@
     <string name="split_keyboard_compatibility_off">꺼짐</string>
     <string name="title_split_keyboard_hide_sub_display_controls_ui">서브디스플레이 조작 UI 숨기기</string>
     <string name="summary_split_keyboard_hide_sub_display_controls_ui">네 터치 영역과 조작 기능은 유지하면서 버튼 대신 검은 화면을 표시합니다.</string>
+    <string name="title_split_keyboard_trackpad_mouse_sensitivity">기본 모드 트랙패드 감도</string>
+    <string name="summary_split_keyboard_trackpad_mouse_sensitivity">터치 호환 모드가 꺼져 있을 때의 포인터 이동 속도를 조절합니다.</string>
+    <string name="title_split_keyboard_compatibility_mouse_sensitivity">호환 모드 트랙패드 감도</string>
+    <string name="summary_split_keyboard_compatibility_mouse_sensitivity">터치 호환 모드가 켜져 있을 때의 포인터 이동 속도를 조절합니다.</string>
+    <string name="title_split_keyboard_trackpad_scroll_sensitivity">트랙패드 스크롤 감도</string>
+    <string name="summary_split_keyboard_trackpad_scroll_sensitivity">상하 및 좌우 스크롤 속도를 조절합니다.</string>
     <string name="split_keyboard_sub_control_left_click">좌클릭</string>
     <string name="split_keyboard_sub_control_right_click">우클릭</string>
     <string name="split_keyboard_sub_control_trackpad">트랙패드</string>

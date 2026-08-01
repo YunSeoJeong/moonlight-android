@@ -28,14 +28,16 @@ import java.util.List;
 public class SplitKeyboardViewLayoutTest {
     private Context context;
     private SplitKeyboardView keyboardView;
+    private ConnectedNoOpTransport transport;
 
     @Before
     public void setUp() {
         context = ApplicationProvider.getApplicationContext();
         PreferenceManager.getDefaultSharedPreferences(context).edit().clear().commit();
         SplitKeyboardPreferences preferences = new SplitKeyboardPreferences(context);
+        transport = new ConnectedNoOpTransport();
         KeyboardStateController stateController = new KeyboardStateController(
-                new ConnectedNoOpTransport(), preferences);
+                transport, preferences);
         keyboardView = new SplitKeyboardView(context);
         keyboardView.bind(stateController, preferences);
     }
@@ -57,7 +59,10 @@ public class SplitKeyboardViewLayoutTest {
 
         assertEquals(SplitKeyboardLayout.KEY_COUNT + 1, keyboardView.getChildCount());
         View toggle = keyboardView.getChildAt(SplitKeyboardLayout.KEY_COUNT);
+        View firstRightKey = keyboardView.getChildAt(6);
         assertTrue(toggle.getLeft() < 1080 && toggle.getRight() > 1080);
+        assertTrue("compatibility toggle must not overlap the trackpad area",
+                toggle.getRight() <= firstRightKey.getLeft());
         assertTrue(toggle.getTop() < keyboardView.getHeight() / 3);
         assertTrue(toggle.getContentDescription().toString().contains(
                 context.getString(R.string.split_keyboard_compatibility_off)));
@@ -75,6 +80,53 @@ public class SplitKeyboardViewLayoutTest {
         assertTrue(toggle.getContentDescription().toString().contains(
                 context.getString(R.string.split_keyboard_compatibility_on)));
         session.setTouchCompatibilityEnabled(false);
+    }
+
+    @Test
+    public void horizontalVisualGapStillDispatchesToANeighboringKey() {
+        keyboardView.measure(
+                View.MeasureSpec.makeMeasureSpec(2160, View.MeasureSpec.EXACTLY),
+                View.MeasureSpec.makeMeasureSpec(641, View.MeasureSpec.EXACTLY));
+        keyboardView.layout(0, 0, 2160, 641);
+
+        View escape = keyboardView.getChildAt(0);
+        View numberOne = keyboardView.getChildAt(1);
+        assertTrue(escape.getRight() < numberOne.getLeft());
+        float gapCenterX = (escape.getRight() + numberOne.getLeft()) / 2f;
+        float centerY = (escape.getTop() + escape.getBottom()) / 2f;
+
+        keyboardView.onTouchEvent(MotionEvent.obtain(
+                0, 0, MotionEvent.ACTION_DOWN, gapCenterX, centerY, 0));
+        keyboardView.onTouchEvent(MotionEvent.obtain(
+                0, 10, MotionEvent.ACTION_UP, gapCenterX, centerY, 0));
+
+        assertEquals(1, transport.downKeys.size());
+        assertEquals(LogicalKey.NUMBER_1, transport.downKeys.get(0));
+    }
+
+    @Test
+    public void verticalVisualGapStillDispatchesToANeighboringKey() {
+        keyboardView.measure(
+                View.MeasureSpec.makeMeasureSpec(2160, View.MeasureSpec.EXACTLY),
+                View.MeasureSpec.makeMeasureSpec(641, View.MeasureSpec.EXACTLY));
+        keyboardView.layout(0, 0, 2160, 641);
+
+        View numberOne = keyboardView.getChildAt(1);
+        View q = keyboardView.getChildAt(16);
+        assertTrue(numberOne.getBottom() < q.getTop());
+        float overlapLeft = Math.max(numberOne.getLeft(), q.getLeft());
+        float overlapRight = Math.min(numberOne.getRight(), q.getRight());
+        assertTrue(overlapLeft < overlapRight);
+        float centerX = (overlapLeft + overlapRight) / 2f;
+        float gapCenterY = (numberOne.getBottom() + q.getTop()) / 2f;
+
+        keyboardView.onTouchEvent(MotionEvent.obtain(
+                0, 0, MotionEvent.ACTION_DOWN, centerX, gapCenterY, 0));
+        keyboardView.onTouchEvent(MotionEvent.obtain(
+                0, 10, MotionEvent.ACTION_UP, centerX, gapCenterY, 0));
+
+        assertEquals(1, transport.downKeys.size());
+        assertEquals(LogicalKey.KEY_Q, transport.downKeys.get(0));
     }
 
     @Test
@@ -200,6 +252,8 @@ public class SplitKeyboardViewLayoutTest {
     }
 
     private static final class ConnectedNoOpTransport implements RemoteKeyboardTransport {
+        final List<LogicalKey> downKeys = new ArrayList<>();
+
         @Override
         public boolean isConnected() {
             return true;
@@ -207,6 +261,7 @@ public class SplitKeyboardViewLayoutTest {
 
         @Override
         public boolean sendKeyDown(LogicalKey key, byte activeModifiers) {
+            downKeys.add(key);
             return true;
         }
 

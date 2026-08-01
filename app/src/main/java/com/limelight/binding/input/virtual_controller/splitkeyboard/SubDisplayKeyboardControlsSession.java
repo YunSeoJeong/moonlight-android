@@ -16,6 +16,9 @@ import java.util.Set;
  */
 public final class SubDisplayKeyboardControlsSession {
     private static final int CURSOR_SYNC_POINTER_ID = 0x5A000001;
+    private static final float TRACKPAD_SCROLL_FACTOR = 5f;
+    private static final int MIN_SENSITIVITY_PERCENT = 10;
+    private static final int MAX_SENSITIVITY_PERCENT = 300;
 
     public enum Control {
         LB,
@@ -63,6 +66,13 @@ public final class SubDisplayKeyboardControlsSession {
     private float cursorX = 0.5f;
     private float cursorY = 0.5f;
     private boolean scrollCursorSynced;
+    private int mouseSensitivityPercent = 100;
+    private int compatibilityMouseSensitivityPercent = 100;
+    private int scrollSensitivityPercent = 100;
+    private float mouseRemainderX;
+    private float mouseRemainderY;
+    private float scrollRemainderX;
+    private float scrollRemainderY;
 
     public static SubDisplayKeyboardControlsSession getInstance() {
         return INSTANCE;
@@ -93,6 +103,19 @@ public final class SubDisplayKeyboardControlsSession {
 
     public boolean isTouchCompatibilityEnabled() {
         return touchCompatibilityEnabled;
+    }
+
+    public void setInputSensitivities(int mouseSensitivityPercent,
+                                      int compatibilityMouseSensitivityPercent,
+                                      int scrollSensitivityPercent) {
+        this.mouseSensitivityPercent = clamp(mouseSensitivityPercent,
+                MIN_SENSITIVITY_PERCENT, MAX_SENSITIVITY_PERCENT);
+        this.compatibilityMouseSensitivityPercent = clamp(
+                compatibilityMouseSensitivityPercent,
+                MIN_SENSITIVITY_PERCENT, MAX_SENSITIVITY_PERCENT);
+        this.scrollSensitivityPercent = clamp(scrollSensitivityPercent,
+                MIN_SENSITIVITY_PERCENT, MAX_SENSITIVITY_PERCENT);
+        resetScaledDeltaRemainders();
     }
 
     public void setCursorBounds(int width, int height) {
@@ -175,6 +198,7 @@ public final class SubDisplayKeyboardControlsSession {
         presses.clear();
         trackpadMode = TrackpadMode.NONE;
         scrollCursorSynced = false;
+        resetScaledDeltaRemainders();
         if (hadLeft) {
             sendButton(Control.LB, false);
         }
@@ -203,21 +227,45 @@ public final class SubDisplayKeyboardControlsSession {
         if (trackpadMode != TrackpadMode.MOUSE || !transport.isConnected()) {
             return false;
         }
+        float sensitivityScale = (touchCompatibilityEnabled
+                ? compatibilityMouseSensitivityPercent
+                : mouseSensitivityPercent) / 100f;
         if (touchCompatibilityEnabled) {
             if (!hasCursorBounds()) {
                 return false;
             }
-            cursorX = clamp01(cursorX + deltaX / (float) cursorWidth);
-            cursorY = clamp01(cursorY + deltaY / (float) cursorHeight);
+            cursorX = clamp01(cursorX
+                    + deltaX * sensitivityScale / cursorWidth);
+            cursorY = clamp01(cursorY
+                    + deltaY * sensitivityScale / cursorHeight);
             notifyListeners();
             return true;
         }
-        return transport.sendMouseMove(deltaX, deltaY);
+
+        mouseRemainderX += deltaX * sensitivityScale;
+        mouseRemainderY += deltaY * sensitivityScale;
+        int scaledDeltaX = (int) mouseRemainderX;
+        int scaledDeltaY = (int) mouseRemainderY;
+        mouseRemainderX -= scaledDeltaX;
+        mouseRemainderY -= scaledDeltaY;
+        return (scaledDeltaX == 0 && scaledDeltaY == 0)
+                || transport.sendMouseMove(scaledDeltaX, scaledDeltaY);
     }
 
-    public boolean sendTrackpadScroll(int verticalAmount, int horizontalAmount) {
+    /** Sends raw pad deltas, mapping rightward swipes to leftward content scrolling. */
+    public boolean sendTrackpadScroll(int deltaX, int deltaY) {
         if (trackpadMode != TrackpadMode.SCROLL || !transport.isConnected()) {
             return false;
+        }
+        float sensitivityScale = scrollSensitivityPercent / 100f;
+        scrollRemainderY += deltaY * TRACKPAD_SCROLL_FACTOR * sensitivityScale;
+        scrollRemainderX -= deltaX * TRACKPAD_SCROLL_FACTOR * sensitivityScale;
+        int verticalAmount = (int) scrollRemainderY;
+        int horizontalAmount = (int) scrollRemainderX;
+        scrollRemainderY -= verticalAmount;
+        scrollRemainderX -= horizontalAmount;
+        if (verticalAmount == 0 && horizontalAmount == 0) {
+            return true;
         }
         if (touchCompatibilityEnabled) {
             if (!scrollCursorSynced) {
@@ -258,7 +306,15 @@ public final class SubDisplayKeyboardControlsSession {
                 ? TrackpadMode.MOUSE : TrackpadMode.SCROLL;
         if (oldMode != trackpadMode) {
             scrollCursorSynced = false;
+            resetScaledDeltaRemainders();
         }
+    }
+
+    private void resetScaledDeltaRemainders() {
+        mouseRemainderX = 0f;
+        mouseRemainderY = 0f;
+        scrollRemainderX = 0f;
+        scrollRemainderY = 0f;
     }
 
     private boolean sendButton(Control control, boolean down) {
@@ -294,6 +350,10 @@ public final class SubDisplayKeyboardControlsSession {
     }
 
     private static float clamp(float value, float min, float max) {
+        return Math.max(min, Math.min(max, value));
+    }
+
+    private static int clamp(int value, int min, int max) {
         return Math.max(min, Math.min(max, value));
     }
 

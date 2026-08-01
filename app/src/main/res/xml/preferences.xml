@@ -1076,6 +1076,45 @@
             android:summary="@string/summary_split_keyboard_hide_sub_display_controls_ui"
             app:iconSpaceReserved="false" />
 
+        <com.limelight.preferences.SeekBarPreference
+            android:defaultValue="100"
+            android:dependency="split_keyboard_sub_display_mouse_controls"
+            android:key="split_keyboard_trackpad_mouse_sensitivity"
+            android:max="300"
+            android:text="%"
+            android:title="@string/title_split_keyboard_trackpad_mouse_sensitivity"
+            android:summary="@string/summary_split_keyboard_trackpad_mouse_sensitivity"
+            app:iconSpaceReserved="false"
+            seekbar:keyStep="10"
+            seekbar:min="10"
+            seekbar:step="10" />
+
+        <com.limelight.preferences.SeekBarPreference
+            android:defaultValue="100"
+            android:dependency="split_keyboard_mouse_touch_compatibility"
+            android:key="split_keyboard_compatibility_mouse_sensitivity"
+            android:max="300"
+            android:text="%"
+            android:title="@string/title_split_keyboard_compatibility_mouse_sensitivity"
+            android:summary="@string/summary_split_keyboard_compatibility_mouse_sensitivity"
+            app:iconSpaceReserved="false"
+            seekbar:keyStep="10"
+            seekbar:min="10"
+            seekbar:step="10" />
+
+        <com.limelight.preferences.SeekBarPreference
+            android:defaultValue="100"
+            android:dependency="split_keyboard_sub_display_mouse_controls"
+            android:key="split_keyboard_trackpad_scroll_sensitivity"
+            android:max="300"
+            android:text="%"
+            android:title="@string/title_split_keyboard_trackpad_scroll_sensitivity"
+            android:summary="@string/summary_split_keyboard_trackpad_scroll_sensitivity"
+            app:iconSpaceReserved="false"
+            seekbar:keyStep="10"
+            seekbar:min="10"
+            seekbar:step="10" />
+
         <CheckBoxPreference
             android:defaultValue="true"
             android:key="split_keyboard_hangul_labels"

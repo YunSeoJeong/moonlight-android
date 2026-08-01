@@ -2458,8 +2458,16 @@ public class Game extends AppCompatActivity implements SurfaceHolder.Callback,
         if (!isSplitKeyboardMouseTransportConnected()) {
             return false;
         }
-        mouseHighResScrollEvent(clampSplitKeyboardMouseAmount(verticalAmount),
-                clampSplitKeyboardMouseAmount(horizontalAmount));
+        // Split-keyboard scrolling has its own sensitivity setting. Send it
+        // directly so the physical mouse-wheel preference is not applied too.
+        short vertical = clampSplitKeyboardMouseAmount(verticalAmount);
+        short horizontal = clampSplitKeyboardMouseAmount(horizontalAmount);
+        if (vertical != 0) {
+            conn.sendMouseHighResScroll(vertical);
+        }
+        if (horizontal != 0) {
+            conn.sendMouseHighResHScroll(horizontal);
+        }
         return true;
     }
 

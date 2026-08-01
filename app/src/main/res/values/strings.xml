@@ -811,6 +811,12 @@
     <string name="split_keyboard_compatibility_off">OFF</string>
     <string name="title_split_keyboard_hide_sub_display_controls_ui">Hide the second-screen controls UI</string>
     <string name="summary_split_keyboard_hide_sub_display_controls_ui">Keeps all four touch regions active but displays a black screen instead of the controls.</string>
+    <string name="title_split_keyboard_trackpad_mouse_sensitivity">Normal-mode trackpad sensitivity</string>
+    <string name="summary_split_keyboard_trackpad_mouse_sensitivity">Adjusts pointer speed while touch-compatible mode is off.</string>
+    <string name="title_split_keyboard_compatibility_mouse_sensitivity">Compatibility-mode trackpad sensitivity</string>
+    <string name="summary_split_keyboard_compatibility_mouse_sensitivity">Adjusts pointer speed while touch-compatible mode is on.</string>
+    <string name="title_split_keyboard_trackpad_scroll_sensitivity">Trackpad scroll sensitivity</string>
+    <string name="summary_split_keyboard_trackpad_scroll_sensitivity">Adjusts vertical and horizontal scrolling speed.</string>
     <string name="split_keyboard_sub_control_left_click">LEFT CLICK</string>
     <string name="split_keyboard_sub_control_right_click">RIGHT CLICK</string>
     <string name="split_keyboard_sub_control_trackpad">TRACKPAD</string>

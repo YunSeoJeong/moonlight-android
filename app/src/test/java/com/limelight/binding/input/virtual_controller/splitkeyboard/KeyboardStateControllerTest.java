@@ -55,6 +55,9 @@ public class KeyboardStateControllerTest {
                 .putBoolean(SplitKeyboardPreferences.KEY_SUB_DISPLAY_MOUSE_CONTROLS, true)
                 .putBoolean(SplitKeyboardPreferences.KEY_MOUSE_TOUCH_COMPATIBILITY, true)
                 .putBoolean(SplitKeyboardPreferences.KEY_HIDE_SUB_DISPLAY_CONTROLS_UI, true)
+                .putInt(SplitKeyboardPreferences.KEY_TRACKPAD_MOUSE_SENSITIVITY, 180)
+                .putInt(SplitKeyboardPreferences.KEY_COMPATIBILITY_MOUSE_SENSITIVITY, 240)
+                .putInt(SplitKeyboardPreferences.KEY_TRACKPAD_SCROLL_SENSITIVITY, 70)
                 .commit();
 
         SplitKeyboardPreferences preferences = new SplitKeyboardPreferences(context);
@@ -62,6 +65,9 @@ public class KeyboardStateControllerTest {
         assertTrue(preferences.subDisplayMouseControls);
         assertTrue(preferences.mouseTouchCompatibility);
         assertTrue(preferences.hideSubDisplayControlsUi);
+        assertEquals(180, preferences.trackpadMouseSensitivityPercent);
+        assertEquals(240, preferences.compatibilityMouseSensitivityPercent);
+        assertEquals(70, preferences.trackpadScrollSensitivityPercent);
     }
 
     @Test
