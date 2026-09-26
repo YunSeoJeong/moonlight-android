@@ -15,6 +15,8 @@ import android.view.VelocityTracker;
 import com.limelight.Game;
 import com.limelight.LimeLog;
 import com.limelight.binding.input.evdev.EvdevListener;
+import com.limelight.binding.input.virtual_controller.splitkeyboard.SubDisplayKeyboardControlsSession;
+import com.limelight.binding.input.virtual_controller.splitkeyboard.SubDisplayKeyboardControlsSession.Control;
 import com.limelight.nvstream.input.ControllerPacket;
 import com.limelight.preferences.PreferenceConfiguration;
 import com.limelight.profiles.ProfilesManager;
@@ -157,8 +159,17 @@ public class WebGamepadLayoutLoader {
     }
 
     public static boolean loadIfAvailable(final VirtualController controller, final Context context) {
+        return loadJson(controller, context, readLayout(context));
+    }
+
+    public static boolean loadAsset(final VirtualController controller, final Context context,
+                                    String assetPath) {
+        return loadJson(controller, context, readAsset(context, assetPath));
+    }
+
+    private static boolean loadJson(final VirtualController controller, final Context context,
+                                    String json) {
         try {
-            String json = readLayout(context);
             if (json == null || json.trim().isEmpty()) {
                 LimeLog.info("WebGamepadLayoutLoader: no layout json available for target=" +
                         controller.getDisplayTarget());
@@ -403,7 +414,11 @@ public class WebGamepadLayoutLoader {
     }
 
     private static String readAsset(Context context) {
-        try (InputStream is = context.getAssets().open(ASSET_PATH)) {
+        return readAsset(context, ASSET_PATH);
+    }
+
+    private static String readAsset(Context context, String assetPath) {
+        try (InputStream is = context.getAssets().open(assetPath)) {
             byte[] buffer = new byte[is.available()];
             int read = is.read(buffer);
             if (read <= 0) {
@@ -1292,6 +1307,8 @@ public class WebGamepadLayoutLoader {
         private final int tapButton;
         private final int twoFingerTapButton;
         private final float touchSlop;
+        private final boolean touchCompatibility;
+        private final SubDisplayKeyboardControlsSession compatibilitySession;
 
         private int primaryPointerId = -1;
         private float lastX;
@@ -1316,6 +1333,9 @@ public class WebGamepadLayoutLoader {
             this.invertX = runtime.optBoolean("invertX", false);
             this.invertY = runtime.optBoolean("invertY", false);
             this.multiTouch = runtime.optBoolean("multiTouch", true);
+            this.touchCompatibility = runtime.optBoolean("touchCompatibility", false);
+            this.compatibilitySession = touchCompatibility
+                    ? SubDisplayKeyboardControlsSession.getInstance() : null;
 
             JSONObject binding = runtime.optJSONObject("binding");
             this.moveXEnabled = hasMouseBinding(binding, "moveX", "mousex");
@@ -1405,6 +1425,7 @@ public class WebGamepadLayoutLoader {
             scrollGestureStarted = false;
             tapCandidate = true;
             twoFingerTapCandidate = false;
+            activateCompatibilityMode(Control.RT, primaryPointerId);
             setPressed(true);
             invalidate();
         }
@@ -1418,6 +1439,7 @@ public class WebGamepadLayoutLoader {
             twoFingerDownCenterX = averageX(event, -1);
             twoFingerDownCenterY = lastScrollY;
             pendingScrollY = 0;
+            activateCompatibilityMode(Control.RB, event.getPointerId(1));
         }
 
         private void updatePointer(MotionEvent event) {
@@ -1472,7 +1494,11 @@ public class WebGamepadLayoutLoader {
                 pendingScrollY += (centerY - lastScrollY) * sensitivity;
                 short vertical = clampShort((int) pendingScrollY);
                 if (vertical != 0) {
-                    sendMouseScroll(vertical, (short) 0);
+                    if (touchCompatibility) {
+                        compatibilitySession.sendTrackpadScroll(0, vertical);
+                    } else {
+                        sendMouseScroll(vertical, (short) 0);
+                    }
                     pendingScrollY -= vertical;
                 }
             }
@@ -1500,8 +1526,10 @@ public class WebGamepadLayoutLoader {
                 primaryPointerId = event.getPointerId(remainingIndex);
                 lastX = tapDownX = event.getX(remainingIndex);
                 lastY = tapDownY = event.getY(remainingIndex);
+                activateCompatibilityMode(Control.RT, primaryPointerId);
             } else {
                 primaryPointerId = -1;
+                releaseCompatibilityMode();
             }
             pendingDeltaX = pendingDeltaY = pendingScrollY = 0;
         }
@@ -1521,6 +1549,7 @@ public class WebGamepadLayoutLoader {
             tapCandidate = false;
             twoFingerTapCandidate = false;
             pendingDeltaX = pendingDeltaY = pendingScrollY = 0;
+            releaseCompatibilityMode();
             setPressed(false);
             invalidate();
         }
@@ -1532,14 +1561,41 @@ public class WebGamepadLayoutLoader {
                 return;
             }
 
-            sendMouseMove(deltaX, deltaY);
+            if (touchCompatibility) {
+                compatibilitySession.sendTrackpadMove(deltaX, deltaY);
+            } else {
+                sendMouseMove(deltaX, deltaY);
+            }
             pendingDeltaX -= deltaX;
             pendingDeltaY -= deltaY;
         }
 
         private void clickMouseButton(int button) {
+            if (touchCompatibility) {
+                compatibilitySession.prepareForRemoteInput();
+            }
             sendMouseButton(button, true);
             sendMouseButton(button, false);
+        }
+
+        private void activateCompatibilityMode(Control control, int pointerId) {
+            if (!touchCompatibility) {
+                return;
+            }
+            compatibilitySession.releaseOwner(this);
+            compatibilitySession.pointerDown(this, pointerId, control);
+        }
+
+        private void releaseCompatibilityMode() {
+            if (touchCompatibility) {
+                compatibilitySession.releaseOwner(this);
+            }
+        }
+
+        @Override
+        protected void onDetachedFromWindow() {
+            releaseCompatibilityMode();
+            super.onDetachedFromWindow();
         }
 
         private static int firstRemainingPointerIndex(MotionEvent event, int excludedIndex) {
@@ -1826,6 +1882,10 @@ public class WebGamepadLayoutLoader {
             switch (event.getActionMasked()) {
                 case MotionEvent.ACTION_DOWN:
                     forwardMousePosition(event);
+                    if (runtime.optBoolean("syncTouchBeforeInput", false)) {
+                        SubDisplayKeyboardControlsSession.getInstance()
+                                .prepareForRemoteInput();
+                    }
                     handleDown(event.getEventTime());
                     invalidate();
                     return true;
@@ -1918,6 +1978,17 @@ public class WebGamepadLayoutLoader {
             if (foldChordBit != 0 && active) {
                 FoldChordSession.cancel(foldChordToken);
                 active = false;
+                setPressed(false);
+            }
+            else {
+                if (active) {
+                    apply(false);
+                }
+                else if (toggled) {
+                    apply(false);
+                }
+                active = false;
+                toggled = false;
                 setPressed(false);
             }
             super.onDetachedFromWindow();

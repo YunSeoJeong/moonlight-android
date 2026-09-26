@@ -60,6 +60,8 @@ public class VirtualController {
     private final String displayTarget;
     private final boolean defaultLayoutFallbackEnabled;
     private final InputStateSink inputStateSink;
+    private final String fixedLayoutAssetPath;
+    private final boolean configureButtonEnabled;
 
     private final Runnable delayedRetransmitRunnable = new Runnable() {
         @Override
@@ -102,6 +104,14 @@ public class VirtualController {
     public VirtualController(final ControllerHandler controllerHandler, FrameLayout layout,
                              View referenceView, final Context context, String displayTarget,
                              boolean defaultLayoutFallbackEnabled, InputStateSink inputStateSink) {
+        this(controllerHandler, layout, referenceView, context, displayTarget,
+                defaultLayoutFallbackEnabled, inputStateSink, null, true);
+    }
+
+    public VirtualController(final ControllerHandler controllerHandler, FrameLayout layout,
+                             View referenceView, final Context context, String displayTarget,
+                             boolean defaultLayoutFallbackEnabled, InputStateSink inputStateSink,
+                             String fixedLayoutAssetPath, boolean configureButtonEnabled) {
         this.controllerHandler = controllerHandler;
         this.frame_layout = layout;
         this.referenceView = referenceView;
@@ -110,6 +120,8 @@ public class VirtualController {
         this.displayTarget = displayTarget == null ? DISPLAY_TARGET_MAIN : displayTarget;
         this.defaultLayoutFallbackEnabled = defaultLayoutFallbackEnabled;
         this.inputStateSink = inputStateSink;
+        this.fixedLayoutAssetPath = fixedLayoutAssetPath;
+        this.configureButtonEnabled = configureButtonEnabled;
 
         this.vibrator = (Vibrator) context.getSystemService(Context.VIBRATOR_SERVICE);
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
@@ -211,6 +223,10 @@ public class VirtualController {
         inputContext.rightStickX = 0;
         inputContext.rightStickY = 0;
         sendControllerInputContextInternal();
+    }
+
+    public void resetInputState() {
+        resetInputContext();
     }
 
     public void removeElements() {
@@ -326,10 +342,14 @@ public class VirtualController {
         FrameLayout.LayoutParams params = new FrameLayout.LayoutParams(buttonSize, buttonSize);
         params.leftMargin = 15 + getLayoutOffsetX();
         params.topMargin = 15 + getLayoutOffsetY();
-        frame_layout.addView(buttonConfigure, params);
-        updateConfigureButtonVisibility();
+        if (configureButtonEnabled) {
+            frame_layout.addView(buttonConfigure, params);
+            updateConfigureButtonVisibility();
+        }
 
-        boolean loadedWebLayout = WebGamepadLayoutLoader.loadIfAvailable(this, context);
+        boolean loadedWebLayout = fixedLayoutAssetPath != null
+                ? WebGamepadLayoutLoader.loadAsset(this, context, fixedLayoutAssetPath)
+                : WebGamepadLayoutLoader.loadIfAvailable(this, context);
         boolean usedDefaultLayout = false;
         if (!loadedWebLayout && defaultLayoutFallbackEnabled) {
             // Start with the default layout
@@ -364,7 +384,8 @@ public class VirtualController {
     }
 
     private boolean isConfigureButtonHiddenByPreference() {
-        return PreferenceConfiguration.readPreferences(context).hideOSCSettingsButton;
+        return !configureButtonEnabled ||
+                PreferenceConfiguration.readPreferences(context).hideOSCSettingsButton;
     }
 
     private boolean isShowing() {

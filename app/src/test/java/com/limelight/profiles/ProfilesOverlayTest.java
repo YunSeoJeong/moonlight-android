@@ -7,6 +7,7 @@ import androidx.test.core.app.ApplicationProvider;
 
 import com.limelight.TestLogSuppressor;
 import com.limelight.binding.input.virtual_controller.splitkeyboard.SplitKeyboardPreferences;
+import com.limelight.binding.input.virtual_controller.lol.LolVirtualGamepadPreferences;
 import com.limelight.preferences.PreferenceConfiguration;
 
 import org.junit.Before;
@@ -101,6 +102,21 @@ public class ProfilesOverlayTest {
         assertTrue(new SplitKeyboardPreferences(context).visible);
         assertTrue(PreferenceConfiguration.readPreferences(context, overlay)
                 .onscreenController);
+    }
+
+    @Test
+    public void profileCanEnableLolVirtualGamepad() {
+        Map<String, Object> patch = new HashMap<>();
+        patch.put(LolVirtualGamepadPreferences.KEY_VISIBLE, true);
+
+        SettingsProfile profile = new SettingsProfile(
+                UUID.randomUUID(), "LoL controls",
+                System.currentTimeMillis(), System.currentTimeMillis(), patch);
+        ProfilesManager pm = ProfilesManager.getInstance();
+        pm.add(profile);
+        pm.setActive(profile.getUuid());
+
+        assertTrue(new LolVirtualGamepadPreferences(context).visible);
     }
 
     private void deleteRecursively(File f) {

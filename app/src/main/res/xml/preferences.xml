@@ -424,6 +424,13 @@
 
         <CheckBoxPreference
             android:defaultValue="false"
+            android:key="checkbox_smooth_touch"
+            android:summary="@string/summary_checkbox_smooth_touch"
+            android:title="@string/title_checkbox_smooth_touch"
+            app:iconSpaceReserved="false" />
+
+        <CheckBoxPreference
+            android:defaultValue="false"
             android:key="checkbox_mouse_nav_buttons"
             android:summary="@string/summary_checkbox_mouse_nav_buttons"
             android:title="@string/title_checkbox_mouse_nav_buttons"
@@ -1037,6 +1044,20 @@
             android:summary="@string/summary_prevent_packet_loss"
             android:title="@string/title_prevent_packet_loss"
             app:iconSpaceReserved="false" />
+    </PreferenceCategory>
+
+    <PreferenceCategory
+        android:key="category_lol_virtual_gamepad"
+        android:title="@string/title_lol_virtual_gamepad_category"
+        app:iconSpaceReserved="false">
+
+        <CheckBoxPreference
+            android:defaultValue="false"
+            android:key="lol_virtual_gamepad_visible"
+            android:title="@string/title_lol_virtual_gamepad_visible"
+            android:summary="@string/summary_lol_virtual_gamepad_visible"
+            app:iconSpaceReserved="false" />
+
     </PreferenceCategory>
 
     <PreferenceCategory

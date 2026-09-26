@@ -89,6 +89,7 @@ public class PreferenceConfiguration {
     private static final String REMEMBER_MOUSE_MODE_PREF_STRING = "checkbox_remember_mouse_mode";
     private static final String ANALOG_SCROLLING_PREF_STRING = "analog_scrolling";
     private static final String MOUSE_NAV_BUTTONS_STRING = "checkbox_mouse_nav_buttons";
+    private static final String SMOOTH_TOUCH_PREF_STRING = "checkbox_smooth_touch";
     private static final String MOUSE_SCROLL_SENSITIVITY_PREF_STRING = "seekbar_mouse_scroll_sensitivity";
     static final String UNLOCK_FPS_STRING = "checkbox_unlock_fps";
     private static final String VIBRATE_OSC_PREF_STRING = "checkbox_vibrate_osc";
@@ -197,6 +198,7 @@ public class PreferenceConfiguration {
     private static final boolean DEFAULT_REMEMBER_MOUSE_MODE = false;
     private static final String DEFAULT_ANALOG_STICK_FOR_SCROLLING = "right";
     private static final boolean DEFAULT_MOUSE_NAV_BUTTONS = false;
+    private static final boolean DEFAULT_SMOOTH_TOUCH = false;
     private static final int DEFAULT_MOUSE_SCROLL_SENSITIVITY = 100;
     private static final boolean DEFAULT_UNLOCK_FPS = false;
     private static final boolean DEFAULT_VIBRATE_OSC = true;
@@ -366,6 +368,7 @@ public class PreferenceConfiguration {
     public boolean enableMouseLocalCursor;
 
     public boolean enableMultiTouchGestures;
+    public boolean smoothTouch;
 
     //禁用内置的特殊指令
     public boolean disableDefaultExtraKeys;
@@ -1113,6 +1116,7 @@ private static int getFramePacingValue(Context context) {
         config.enableMouseLocalCursor=prefs.getBoolean("checkbox_mouse_local_cursor",false);
 
         config.enableMultiTouchGestures = prefs.getBoolean("checkbox_multi_touch_gestures", false);
+        config.smoothTouch = prefs.getBoolean(SMOOTH_TOUCH_PREF_STRING, DEFAULT_SMOOTH_TOUCH);
 
 
         config.enablePerfOverlayLiteDialog=prefs.getBoolean("checkbox_enable_perf_overlay_lite_dialog",false);

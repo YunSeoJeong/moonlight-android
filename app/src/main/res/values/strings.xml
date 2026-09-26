@@ -482,6 +482,8 @@
     <string name="summary_checkbox_mouse_local_cursor">Default external physical mouse cursor will be captured, this option can display Android system cursor</string>
     <string name="title_checkbox_multi_touch_gestures">Enable multi-touch gestures</string>
     <string name="summary_checkbox_multi_touch_gestures">Enable 3 finger tap for keyboard, 4 finger tap for full keyboard, 5 finger tap for quick menu when using multi-touch mode.</string>
+    <string name="title_checkbox_smooth_touch">Smooth touch</string>
+    <string name="summary_checkbox_smooth_touch">Synchronize multi-touch movement with display refresh for smoother motion. This may add up to one frame of touch latency.</string>
     <string name="title_checkbox_onscreen_style_official">Official Virtual Gamepad Skin</string>
     <string name="summary_checkbox_onscreen_style_official">If you still like the old style of official virtual gamepad buttons, you can select this option.\nButton shapes can be square if you selected the bottom virtual button [Normal buttons are square buttons]</string>
     <string name="title_checkbox_enable_perf_overlay_lite">Enable Lite mode</string>
@@ -799,6 +801,9 @@
     <string name="tap_to_add_resolution">Tap + to add a custom resolution</string>
     <string name="hint_resolution_input">e.g. 1920x1080</string>
 
+    <string name="title_lol_virtual_gamepad_category">League of Legends virtual gamepad</string>
+    <string name="title_lol_virtual_gamepad_visible">Show LoL gamepad when streaming</string>
+    <string name="summary_lol_virtual_gamepad_visible">Applied when the next session starts. It replaces the split keyboard and standard on-screen gamepad, using the same bottom area as the split keyboard. Enable dual-screen virtual gamepad to also use the second-screen controls.</string>
     <string name="title_split_keyboard_category">Split PC keyboard (68 keys)</string>
     <string name="title_split_keyboard_visible">Show split keyboard when streaming</string>
     <string name="summary_split_keyboard_visible">Applied when the next session starts and kept for the whole session. It can be enabled together with a virtual gamepad.</string>

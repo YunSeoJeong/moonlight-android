@@ -27,6 +27,8 @@ import com.limelight.binding.input.virtual_controller.VirtualController;
 import com.limelight.binding.input.virtual_controller.VirtualControllerStateAggregator;
 import com.limelight.binding.input.virtual_controller.keyboard.KeyBoardController;
 import com.limelight.binding.input.virtual_controller.keyboard.KeyBoardLayoutController;
+import com.limelight.binding.input.virtual_controller.lol.LolVirtualGamepadController;
+import com.limelight.binding.input.virtual_controller.lol.LolVirtualGamepadPreferences;
 import com.limelight.binding.input.virtual_controller.splitkeyboard.SplitKeyboardController;
 import com.limelight.binding.input.virtual_controller.splitkeyboard.SplitKeyboardPreferences;
 import com.limelight.binding.video.CrashListener;
@@ -191,8 +193,10 @@ public class Game extends AppCompatActivity implements SurfaceHolder.Callback,
 
     private KeyBoardLayoutController keyBoardLayoutController;
     private SplitKeyboardController splitKeyboardController;
+    private LolVirtualGamepadController lolVirtualGamepadController;
 
     private PreferenceConfiguration prefConfig;
+    private LolVirtualGamepadPreferences lolVirtualGamepadPreferences;
     private SharedPreferences tombstonePrefs;
 
     private int displayWidth;
@@ -428,6 +432,7 @@ public class Game extends AppCompatActivity implements SurfaceHolder.Callback,
 
         // Read the stream preferences
         prefConfig = PreferenceConfiguration.readPreferences(this);
+        lolVirtualGamepadPreferences = new LolVirtualGamepadPreferences(this);
         tombstonePrefs = Game.this.getSharedPreferences("DecoderTombstone", 0);
 
         if (prefConfig.fullScreen) {
@@ -583,20 +588,16 @@ public class Game extends AppCompatActivity implements SurfaceHolder.Callback,
             // Request unbuffered input event dispatching for all input classes we handle here.
             // Without this, input events are buffered to be delivered in lock-step with VBlank,
             // artificially increasing input latency while streaming.
-            streamContainer.requestUnbufferedDispatch(
+            int unbufferedInputSources =
                     InputDevice.SOURCE_CLASS_BUTTON | // Keyboards
                             InputDevice.SOURCE_CLASS_JOYSTICK | // Gamepads
-                            InputDevice.SOURCE_CLASS_POINTER | // Touchscreens and mice (w/o pointer capture)
                             InputDevice.SOURCE_CLASS_POSITION | // Touchpads
-                            InputDevice.SOURCE_CLASS_TRACKBALL // Mice (pointer capture)
-            );
-            backgroundTouchView.requestUnbufferedDispatch(
-                    InputDevice.SOURCE_CLASS_BUTTON | // Keyboards
-                            InputDevice.SOURCE_CLASS_JOYSTICK | // Gamepads
-                            InputDevice.SOURCE_CLASS_POINTER | // Touchscreens and mice (w/o pointer capture)
-                            InputDevice.SOURCE_CLASS_POSITION | // Touchpads
-                            InputDevice.SOURCE_CLASS_TRACKBALL // Mice (pointer capture)
-            );
+                            InputDevice.SOURCE_CLASS_TRACKBALL; // Mice (pointer capture)
+            if (!prefConfig.smoothTouch) {
+                unbufferedInputSources |= InputDevice.SOURCE_CLASS_POINTER; // Touchscreens and mice (w/o pointer capture)
+            }
+            streamContainer.requestUnbufferedDispatch(unbufferedInputSources);
+            backgroundTouchView.requestUnbufferedDispatch(unbufferedInputSources);
         }
 
         notificationOverlayView = findViewById(R.id.notificationOverlay);
@@ -838,7 +839,7 @@ public class Game extends AppCompatActivity implements SurfaceHolder.Callback,
             // of gamepads removed and replugged at runtime.
             gamepadMask = 1;
         }
-        if (prefConfig.onscreenController) {
+        if (prefConfig.onscreenController || lolVirtualGamepadPreferences.visible) {
             // If we're using OSC, always set at least gamepad 1.
             gamepadMask |= 1;
         }
@@ -932,7 +933,7 @@ public class Game extends AppCompatActivity implements SurfaceHolder.Callback,
             initMouseMode();
         }
 
-        if (prefConfig.onscreenController) {
+        if (prefConfig.onscreenController && !lolVirtualGamepadPreferences.visible) {
             // create virtual onscreen controller
             if (prefConfig.hideOSCWhenHasGamepad) {
                 if (!controllerHandler.hasController()) {
@@ -988,7 +989,21 @@ public class Game extends AppCompatActivity implements SurfaceHolder.Callback,
         overlayToggleButton = findViewById(R.id.overlayToggleZoomButton);
         setupOverlayToggleButton();
 
-        if (splitKeyboardPreferences.visible
+        if (lolVirtualGamepadPreferences.visible
+                && !onExternelDisplay
+                && getPackageManager().hasSystemFeature(PackageManager.FEATURE_TOUCHSCREEN)) {
+            lolVirtualGamepadController = new LolVirtualGamepadController(
+                    this,
+                    (FrameLayout) rootView,
+                    streamContainer,
+                    backgroundTouchView,
+                    () -> {
+                        if (virtualController != null) {
+                            virtualController.refreshLayout();
+                        }
+                    });
+        }
+        else if (splitKeyboardPreferences.visible
                 && !onExternelDisplay
                 && getPackageManager().hasSystemFeature(PackageManager.FEATURE_TOUCHSCREEN)) {
             splitKeyboardController = new SplitKeyboardController(
@@ -1215,6 +1230,10 @@ public class Game extends AppCompatActivity implements SurfaceHolder.Callback,
     }
 
     private void initVirtualController(){
+        if (lolVirtualGamepadPreferences != null && lolVirtualGamepadPreferences.visible) {
+            LimeLog.info("Game.initVirtualController: skipped while LoL virtual gamepad is active");
+            return;
+        }
         LimeLog.info("Game.initVirtualController: dualScreenVirtualGamepad=" +
                 prefConfig.dualScreenVirtualGamepad + " rootView=" +
                 (rootView != null ? rootView.getClass().getSimpleName() : "null") +
@@ -1282,6 +1301,9 @@ public class Game extends AppCompatActivity implements SurfaceHolder.Callback,
     }
 
     public void toggleVirtualController(){
+        if (lolVirtualGamepadPreferences != null && lolVirtualGamepadPreferences.visible) {
+            return;
+        }
         if (virtualController==null) {
             initVirtualController();
             prefConfig.onscreenController=true;
@@ -1399,6 +1421,9 @@ public class Game extends AppCompatActivity implements SurfaceHolder.Callback,
 
         if (splitKeyboardController != null) {
             splitKeyboardController.onScreenGeometryChanged();
+        }
+        if (lolVirtualGamepadController != null) {
+            lolVirtualGamepadController.onScreenGeometryChanged();
         }
 
         // Hide on-screen overlays in PiP mode
@@ -1902,6 +1927,10 @@ public class Game extends AppCompatActivity implements SurfaceHolder.Callback,
             splitKeyboardController.destroy();
             splitKeyboardController = null;
         }
+        if (lolVirtualGamepadController != null) {
+            lolVirtualGamepadController.destroy();
+            lolVirtualGamepadController = null;
+        }
         super.onDestroy();
 
         boolean destroyingCurrentInstance = instance == this;
@@ -2010,6 +2039,9 @@ public class Game extends AppCompatActivity implements SurfaceHolder.Callback,
         logGameActivityState("onPause before super");
         if (splitKeyboardController != null) {
             splitKeyboardController.onAppBackgrounded();
+        }
+        if (lolVirtualGamepadController != null) {
+            lolVirtualGamepadController.onAppBackgrounded();
         }
         if (isFinishing()) {
             // Stop any further input device notifications before we lose focus (and pointer capture)
@@ -4054,13 +4086,28 @@ public class Game extends AppCompatActivity implements SurfaceHolder.Callback,
 
     @Override
     public boolean onGenericMotion(View view, MotionEvent event) {
+        if (prefConfig.smoothTouch && !shouldUseSmoothTouchDispatch(event)) {
+            // SOURCE_CLASS_POINTER isn't requested globally in smooth-touch mode, so retain
+            // unbuffered dispatch for non-finger pointer devices such as mice and styli.
+            view.requestUnbufferedDispatch(event);
+        }
         return handleMotionEvent(view, event);
+    }
+
+    private boolean shouldUseSmoothTouchDispatch(MotionEvent event) {
+        int actionIndex = event.getActionIndex();
+        return prefConfig.smoothTouch &&
+                prefConfig.enableMultiTouchScreen &&
+                !prefConfig.touchscreenTrackpad &&
+                actionIndex >= 0 &&
+                actionIndex < event.getPointerCount() &&
+                event.getToolType(actionIndex) == MotionEvent.TOOL_TYPE_FINGER;
     }
 
     @SuppressLint("ClickableViewAccessibility")
     @Override
     public boolean onTouch(View view, MotionEvent event) {
-        if (event.getAction() == MotionEvent.ACTION_DOWN) {
+        if (event.getAction() == MotionEvent.ACTION_DOWN && !shouldUseSmoothTouchDispatch(event)) {
             // Tell the OS not to buffer input events for us
             //
             // NB: This is still needed even when we call the newer requestUnbufferedDispatch()!
@@ -4093,6 +4140,9 @@ public class Game extends AppCompatActivity implements SurfaceHolder.Callback,
                     " quitOnStop=" + quitOnStop);
             if (splitKeyboardController != null) {
                 splitKeyboardController.onConnectionLost();
+            }
+            if (lolVirtualGamepadController != null) {
+                lolVirtualGamepadController.onConnectionLost();
             }
             DualDisplayVirtualGamepadManager.onConnectionLost();
             connecting = connected = false;
@@ -4336,6 +4386,9 @@ public class Game extends AppCompatActivity implements SurfaceHolder.Callback,
                     splitKeyboardController.onConnectionStarted();
                 }
                 DualDisplayVirtualGamepadManager.onConnectionStarted();
+                if (lolVirtualGamepadController != null) {
+                    lolVirtualGamepadController.onConnectionStarted();
+                }
                 updatePipAutoEnter();
 
                 // Persist session so the app can auto-reconnect if the user backgrounds it.

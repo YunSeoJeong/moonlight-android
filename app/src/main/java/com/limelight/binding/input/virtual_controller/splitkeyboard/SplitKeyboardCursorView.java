@@ -8,7 +8,7 @@ import android.graphics.Path;
 import android.view.View;
 
 /** Local cursor for touch-compatible split-keyboard mouse input. */
-final class SplitKeyboardCursorView extends View
+public final class SplitKeyboardCursorView extends View
         implements SubDisplayKeyboardControlsSession.Listener {
     private final SubDisplayKeyboardControlsSession session =
             SubDisplayKeyboardControlsSession.getInstance();
@@ -16,7 +16,7 @@ final class SplitKeyboardCursorView extends View
     private final Path cursorPath = new Path();
     private final float density;
 
-    SplitKeyboardCursorView(Context context) {
+    public SplitKeyboardCursorView(Context context) {
         super(context);
         density = getResources().getDisplayMetrics().density;
         setWillNotDraw(false);

@@ -90,6 +90,17 @@ public class StartupCrashTest {
     }
 
     @Test
+    public void testSmoothTouchPreference() {
+        SharedPreferences prefs = context.getSharedPreferences("smooth_touch_test", Context.MODE_PRIVATE);
+        prefs.edit().clear().commit();
+
+        assertFalse(PreferenceConfiguration.readPreferences(context, prefs).smoothTouch);
+
+        prefs.edit().putBoolean("checkbox_smooth_touch", true).commit();
+        assertTrue(PreferenceConfiguration.readPreferences(context, prefs).smoothTouch);
+    }
+
+    @Test
     public void testUiHelperCrash() {
         // Test UiHelper methods that might cause crashes
         try {

@@ -1,0 +1,335 @@
+{
+  "version": "1.4",
+  "meta": {
+    "name": "lol_v1.0.0",
+    "description": "Built-in League of Legends control surface",
+    "version": "1.4"
+  },
+  "resolutions": [
+    {
+      "display": "main",
+      "displayTarget": "main",
+      "settings": {
+        "display": "main",
+        "displayTarget": "main"
+      },
+      "width": 2160,
+      "height": 641,
+      "components": [
+        {
+          "id": "lol_left_stick",
+          "type": "stick",
+          "originalType": "stick",
+          "subtype": "normal",
+          "label": "",
+          "rect": { "x": 430, "y": 115, "w": 350, "h": 350 },
+          "style": {
+            "shape": "circle",
+            "color": null,
+            "bg": null,
+            "opacity": 1,
+            "mouseIgnore": true
+          },
+          "runtime": {
+            "inputType": "controller",
+            "deadzone": 0.15,
+            "fixed": true,
+            "mode": "analog",
+            "binding": {
+              "axisX": "LeftStickX",
+              "axisY": "LeftStickY"
+            },
+            "range": [-1, 1],
+            "multiTouch": true,
+            "touchIdPolicy": "lockUntilRelease",
+            "z": 0
+          }
+        },
+        {
+          "id": "lol_key_2",
+          "type": "button",
+          "originalType": "button",
+          "label": "2",
+          "rect": { "x": 1530, "y": 33, "w": 120, "h": 120 },
+          "style": { "shape": "circle", "opacity": 1, "mouseIgnore": true },
+          "runtime": {
+            "inputType": "keyboard",
+            "behavior": "hold",
+            "binding": { "key": "Digit2" },
+            "syncTouchBeforeInput": true,
+            "multiTouch": true,
+            "touchIdPolicy": "lockUntilRelease",
+            "z": 0
+          }
+        },
+        {
+          "id": "lol_key_1",
+          "type": "button",
+          "originalType": "button",
+          "label": "1",
+          "rect": { "x": 1370, "y": 33, "w": 120, "h": 120 },
+          "style": { "shape": "circle", "opacity": 1, "mouseIgnore": true },
+          "runtime": {
+            "inputType": "keyboard",
+            "behavior": "hold",
+            "binding": { "key": "Digit1" },
+            "syncTouchBeforeInput": true,
+            "multiTouch": true,
+            "touchIdPolicy": "lockUntilRelease",
+            "z": 0
+          }
+        },
+        {
+          "id": "lol_key_3",
+          "type": "button",
+          "originalType": "button",
+          "label": "3",
+          "rect": { "x": 1690, "y": 33, "w": 120, "h": 120 },
+          "style": { "shape": "circle", "opacity": 1, "mouseIgnore": true },
+          "runtime": {
+            "inputType": "keyboard",
+            "behavior": "hold",
+            "binding": { "key": "Digit3" },
+            "syncTouchBeforeInput": true,
+            "multiTouch": true,
+            "touchIdPolicy": "lockUntilRelease",
+            "z": 0
+          }
+        },
+        {
+          "id": "lol_key_4",
+          "type": "button",
+          "originalType": "button",
+          "label": "4",
+          "rect": { "x": 1850, "y": 33, "w": 120, "h": 120 },
+          "style": { "shape": "circle", "opacity": 1, "mouseIgnore": true },
+          "runtime": {
+            "inputType": "keyboard",
+            "behavior": "hold",
+            "binding": { "key": "Digit4" },
+            "syncTouchBeforeInput": true,
+            "multiTouch": true,
+            "touchIdPolicy": "lockUntilRelease",
+            "z": 0
+          }
+        },
+        {
+          "id": "lol_trackpad",
+          "type": "touchpad",
+          "originalType": "touchpad",
+          "label": "",
+          "rect": { "x": 1230, "y": 195, "w": 570, "h": 370 },
+          "style": { "shape": "square", "opacity": 1, "mouseIgnore": true },
+          "runtime": {
+            "inputType": "mouse",
+            "mode": "relative",
+            "binding": {
+              "moveX": "MouseX",
+              "moveY": "MouseY",
+              "tap": "MouseLeft",
+              "twoFingerTap": "MouseRight",
+              "scrollY": "MouseWheelY"
+            },
+            "sensitivity": 2,
+            "invertX": false,
+            "invertY": false,
+            "touchCompatibility": true,
+            "multiTouch": true,
+            "touchIdPolicy": "lockUntilRelease",
+            "z": 0
+          }
+        },
+        {
+          "id": "lol_key_q",
+          "type": "button",
+          "originalType": "button",
+          "label": "Q",
+          "rect": { "x": 1850, "y": 185, "w": 120, "h": 120 },
+          "style": { "shape": "circle", "opacity": 1, "mouseIgnore": true },
+          "runtime": {
+            "inputType": "keyboard",
+            "behavior": "hold",
+            "binding": { "key": "KeyQ" },
+            "syncTouchBeforeInput": true,
+            "multiTouch": true,
+            "touchIdPolicy": "lockUntilRelease",
+            "z": 0
+          }
+        },
+        {
+          "id": "lol_key_alt",
+          "type": "button",
+          "originalType": "button",
+          "label": "LAlt",
+          "rect": { "x": 1850, "y": 335, "w": 120, "h": 120 },
+          "style": { "shape": "circle", "opacity": 1, "mouseIgnore": true },
+          "runtime": {
+            "inputType": "keyboard",
+            "behavior": "hold",
+            "binding": { "key": "AltLeft" },
+            "syncTouchBeforeInput": false,
+            "multiTouch": true,
+            "touchIdPolicy": "lockUntilRelease",
+            "z": 0
+          }
+        },
+        {
+          "id": "lol_key_b",
+          "type": "button",
+          "originalType": "button",
+          "label": "B",
+          "rect": { "x": 280, "y": 33, "w": 120, "h": 120 },
+          "style": { "shape": "circle", "opacity": 1, "mouseIgnore": true },
+          "runtime": {
+            "inputType": "keyboard",
+            "behavior": "hold",
+            "binding": { "key": "KeyB" },
+            "syncTouchBeforeInput": true,
+            "multiTouch": true,
+            "touchIdPolicy": "lockUntilRelease",
+            "z": 0
+          }
+        },
+        {
+          "id": "lol_key_p",
+          "type": "button",
+          "originalType": "button",
+          "label": "P",
+          "rect": { "x": 280, "y": 205, "w": 120, "h": 120 },
+          "style": { "shape": "circle", "opacity": 1, "mouseIgnore": true },
+          "runtime": {
+            "inputType": "keyboard",
+            "behavior": "hold",
+            "binding": { "key": "KeyP" },
+            "syncTouchBeforeInput": true,
+            "multiTouch": true,
+            "touchIdPolicy": "lockUntilRelease",
+            "z": 0
+          }
+        }
+      ],
+      "mouseRegions": []
+    },
+    {
+      "display": "sub",
+      "displayTarget": "sub",
+      "settings": {
+        "display": "sub",
+        "displayTarget": "sub"
+      },
+      "width": 2376,
+      "height": 968,
+      "components": [
+        {
+          "id": "lol_sub_mb2",
+          "type": "button",
+          "originalType": "shoulder",
+          "subtype": "shoulder",
+          "label": "MB2",
+          "rect": { "x": 210, "y": 10, "w": 650, "h": 300 },
+          "style": { "shape": "square", "opacity": 0, "mouseIgnore": true },
+          "runtime": {
+            "inputType": "mouse",
+            "behavior": "hold",
+            "binding": { "button": "MouseRight" },
+            "syncTouchBeforeInput": true,
+            "multiTouch": true,
+            "touchIdPolicy": "lockUntilRelease",
+            "z": 0
+          }
+        },
+        {
+          "id": "lol_sub_mb1",
+          "type": "button",
+          "originalType": "shoulder",
+          "subtype": "shoulder",
+          "label": "MB1",
+          "rect": { "x": 1530, "y": 10, "w": 650, "h": 303 },
+          "style": { "shape": "square", "opacity": 0, "mouseIgnore": true },
+          "runtime": {
+            "inputType": "mouse",
+            "behavior": "hold",
+            "binding": { "button": "MouseLeft" },
+            "syncTouchBeforeInput": true,
+            "multiTouch": true,
+            "touchIdPolicy": "lockUntilRelease",
+            "z": 0
+          }
+        },
+        {
+          "id": "lol_sub_shift",
+          "type": "button",
+          "originalType": "shoulder",
+          "subtype": "shoulder",
+          "label": "LShift",
+          "rect": { "x": 1530, "y": 320, "w": 650, "h": 303 },
+          "style": { "shape": "square", "opacity": 0, "mouseIgnore": true },
+          "runtime": {
+            "inputType": "keyboard",
+            "behavior": "hold",
+            "binding": { "key": "ShiftLeft" },
+            "syncTouchBeforeInput": true,
+            "multiTouch": true,
+            "touchIdPolicy": "lockUntilRelease",
+            "z": 0
+          }
+        },
+        {
+          "id": "lol_sub_r",
+          "type": "button",
+          "originalType": "shoulder",
+          "subtype": "shoulder",
+          "label": "R",
+          "rect": { "x": 1530, "y": 630, "w": 650, "h": 303 },
+          "style": { "shape": "square", "opacity": 0, "mouseIgnore": true },
+          "runtime": {
+            "inputType": "keyboard",
+            "behavior": "hold",
+            "binding": { "key": "KeyR" },
+            "syncTouchBeforeInput": true,
+            "multiTouch": true,
+            "touchIdPolicy": "lockUntilRelease",
+            "z": 0
+          }
+        },
+        {
+          "id": "lol_sub_e",
+          "type": "button",
+          "originalType": "shoulder",
+          "subtype": "shoulder",
+          "label": "E",
+          "rect": { "x": 210, "y": 320, "w": 650, "h": 303 },
+          "style": { "shape": "square", "opacity": 0, "mouseIgnore": true },
+          "runtime": {
+            "inputType": "keyboard",
+            "behavior": "hold",
+            "binding": { "key": "KeyE" },
+            "syncTouchBeforeInput": true,
+            "multiTouch": true,
+            "touchIdPolicy": "lockUntilRelease",
+            "z": 0
+          }
+        },
+        {
+          "id": "lol_sub_f",
+          "type": "button",
+          "originalType": "shoulder",
+          "subtype": "shoulder",
+          "label": "F",
+          "rect": { "x": 210, "y": 630, "w": 650, "h": 303 },
+          "style": { "shape": "square", "opacity": 0, "mouseIgnore": true },
+          "runtime": {
+            "inputType": "keyboard",
+            "behavior": "hold",
+            "binding": { "key": "KeyF" },
+            "syncTouchBeforeInput": true,
+            "multiTouch": true,
+            "touchIdPolicy": "lockUntilRelease",
+            "z": 0
+          }
+        }
+      ],
+      "mouseRegions": []
+    }
+  ]
+}

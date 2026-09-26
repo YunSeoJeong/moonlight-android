@@ -28,6 +28,7 @@ import com.limelight.LimeLog;
 import com.limelight.R;
 import com.limelight.binding.input.virtual_controller.VirtualController;
 import com.limelight.binding.input.virtual_controller.VirtualControllerElement;
+import com.limelight.binding.input.virtual_controller.lol.LolVirtualGamepadPreferences;
 import com.limelight.binding.input.virtual_controller.splitkeyboard.SplitKeyboardPreferences;
 import com.limelight.binding.input.virtual_controller.splitkeyboard.SubDisplayKeyboardControlsSession;
 import com.limelight.binding.input.virtual_controller.splitkeyboard.SubDisplayKeyboardControlsView;
@@ -50,6 +51,7 @@ public final class DualDisplayVirtualGamepadManager {
     private static int windowAreaRetryCount;
     private static Runnable windowAreaRetryRunnable;
     private static boolean splitKeyboardMouseControls;
+    private static boolean lolVirtualGamepad;
 
     private DualDisplayVirtualGamepadManager() {
     }
@@ -58,7 +60,11 @@ public final class DualDisplayVirtualGamepadManager {
         int generation = ++windowAreaGeneration;
         SplitKeyboardPreferences keyboardPreferences =
                 new SplitKeyboardPreferences(game);
-        splitKeyboardMouseControls = keyboardPreferences.visible
+        LolVirtualGamepadPreferences lolPreferences =
+                new LolVirtualGamepadPreferences(game);
+        lolVirtualGamepad = lolPreferences.visible;
+        splitKeyboardMouseControls = !lolVirtualGamepad
+                && keyboardPreferences.visible
                 && keyboardPreferences.subDisplayMouseControls;
         windowAreaRetryCount = 0;
         cancelWindowAreaRetry();
@@ -68,9 +74,19 @@ public final class DualDisplayVirtualGamepadManager {
                 " windowAreaSession=" + (windowAreaSession != null) +
                 " presentationRequested=" + windowAreaPresentationRequested +
                 " splitKeyboardMouseControls=" + splitKeyboardMouseControls +
+                " lolVirtualGamepad=" + lolVirtualGamepad +
                 " generation=" + generation);
         closeWindowAreaPresentation();
-        SubDisplayKeyboardControlsSession.getInstance().reset();
+        SubDisplayKeyboardControlsSession session =
+                SubDisplayKeyboardControlsSession.getInstance();
+        session.reset();
+        if (lolVirtualGamepad) {
+            session.setInputSensitivities(
+                    100,
+                    lolPreferences.compatibilityMouseSensitivityPercent,
+                    100);
+            session.setTouchCompatibilityEnabled(true);
+        }
         if (Game.instance != null) {
             Game.instance.resetVirtualControllerInputState(VirtualController.DISPLAY_TARGET_SUB);
         }
@@ -159,6 +175,8 @@ public final class DualDisplayVirtualGamepadManager {
             intent.putExtra(ExternalDisplayControlActivity.EXTRA_CONTROL_SURFACE,
                     splitKeyboardMouseControls
                             ? ExternalDisplayControlActivity.CONTROL_SURFACE_SPLIT_KEYBOARD
+                            : lolVirtualGamepad
+                            ? ExternalDisplayControlActivity.CONTROL_SURFACE_LOL_GAMEPAD
                             : ExternalDisplayControlActivity.CONTROL_SURFACE_DEFAULT);
             intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK |
                     Intent.FLAG_ACTIVITY_SINGLE_TOP |
@@ -434,8 +452,12 @@ public final class DualDisplayVirtualGamepadManager {
     }
 
     public static View createSubVirtualGamepadView(Context context) {
+        return createSubVirtualGamepadView(context, lolVirtualGamepad);
+    }
+
+    private static View createSubVirtualGamepadView(Context context, boolean useLolLayout) {
         LimeLog.info("DualDisplayVirtualGamepadManager.createSubVirtualGamepadView: hasGame=" +
-                (Game.instance != null));
+                (Game.instance != null) + " lolVirtualGamepad=" + useLolLayout);
         ExternalControllerView root = new ExternalControllerView(context);
         root.setBackgroundColor(Color.BLACK);
         root.setLayoutParams(new ViewGroup.LayoutParams(
@@ -452,7 +474,9 @@ public final class DualDisplayVirtualGamepadManager {
                 context,
                 VirtualController.DISPLAY_TARGET_SUB,
                 false,
-                game != null ? game.getVirtualControllerInputStateSink() : null);
+                game != null ? game.getVirtualControllerInputStateSink() : null,
+                useLolLayout ? LolVirtualGamepadPreferences.LAYOUT_ASSET_PATH : null,
+                !useLolLayout);
         virtualController.refreshLayout();
         virtualController.show();
         installSubVirtualGamepadTouchRouter(root, virtualController);
@@ -475,7 +499,7 @@ public final class DualDisplayVirtualGamepadManager {
                     ViewGroup.LayoutParams.MATCH_PARENT));
             return view;
         }
-        return createSubVirtualGamepadView(context);
+        return createSubVirtualGamepadView(context, lolVirtualGamepad);
     }
 
     private static void installSubVirtualGamepadTouchRouter(ExternalControllerView root,

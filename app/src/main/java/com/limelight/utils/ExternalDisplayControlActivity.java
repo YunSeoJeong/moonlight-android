@@ -51,6 +51,7 @@ import com.limelight.StartExternalDisplayControlReceiver;
 import com.limelight.binding.input.virtual_controller.VirtualController;
 import com.limelight.binding.input.virtual_controller.VirtualControllerElement;
 import com.limelight.binding.input.virtual_controller.keyboard.KeyBoardLayoutController;
+import com.limelight.binding.input.virtual_controller.lol.LolVirtualGamepadPreferences;
 import com.limelight.binding.input.virtual_controller.splitkeyboard.SubDisplayKeyboardControlsView;
 import com.limelight.preferences.PreferenceConfiguration;
 import com.limelight.ui.ExternalControllerView;
@@ -65,6 +66,7 @@ public class ExternalDisplayControlActivity extends AppCompatActivity implements
     public static final String EXTRA_CONTROL_SURFACE = "controlSurface";
     public static final String CONTROL_SURFACE_DEFAULT = "default";
     public static final String CONTROL_SURFACE_SPLIT_KEYBOARD = "splitKeyboardMouse";
+    public static final String CONTROL_SURFACE_LOL_GAMEPAD = "lolGamepad";
 
     @SuppressLint("StaticFieldLeak")
     public static ExternalDisplayControlActivity instance;
@@ -852,6 +854,12 @@ public class ExternalDisplayControlActivity extends AppCompatActivity implements
             return;
         }
 
+        if (isLolVirtualGamepadControlSurface()) {
+            initVirtualController();
+            logLifecycleState("createProgrammaticUI LoL gamepad complete");
+            return;
+        }
+
         // Top-left buttons
         LinearLayout topLeftButtons = createButtonContainer(Gravity.TOP | Gravity.START);
         topLeftButtons.setFocusable(false);
@@ -905,6 +913,11 @@ public class ExternalDisplayControlActivity extends AppCompatActivity implements
                 getIntent().getStringExtra(EXTRA_CONTROL_SURFACE));
     }
 
+    private boolean isLolVirtualGamepadControlSurface() {
+        return CONTROL_SURFACE_LOL_GAMEPAD.equals(
+                getIntent().getStringExtra(EXTRA_CONTROL_SURFACE));
+    }
+
     /**
      * Toggles the visibility of the on-screen software keyboard.
      */
@@ -929,9 +942,12 @@ public class ExternalDisplayControlActivity extends AppCompatActivity implements
 
         LimeLog.info("ExternalDisplayControlActivity.initVirtualController: creating sub controller root=" +
                 (rootLayout != null ? rootLayout.getWidth() + "x" + rootLayout.getHeight() : "null"));
+        boolean useLolLayout = isLolVirtualGamepadControlSurface();
         virtualController = new VirtualController(Game.instance.getControllerHandler(),
                 rootLayout, null, this, VirtualController.DISPLAY_TARGET_SUB, false,
-                Game.instance.getVirtualControllerInputStateSink());
+                Game.instance.getVirtualControllerInputStateSink(),
+                useLolLayout ? LolVirtualGamepadPreferences.LAYOUT_ASSET_PATH : null,
+                !useLolLayout);
         virtualController.refreshLayout();
         virtualController.show();
         LimeLog.info("ExternalDisplayControlActivity.initVirtualController: sub controller shown elements=" +
