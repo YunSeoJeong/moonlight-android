@@ -1300,6 +1300,17 @@ public class Game extends AppCompatActivity implements SurfaceHolder.Callback,
             return;
         }
 
+        // A split keyboard needs the wide screen axis for the video above it.
+        // SENSOR_LANDSCAPE also permits turning the Fold to the other landscape side.
+        if (!onExternelDisplay && new SplitKeyboardPreferences(this).visible) {
+            setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE);
+            return;
+        }
+        if (!onExternelDisplay && prefConfig.autoOrientation) {
+            setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_FULL_USER);
+            return;
+        }
+
         Display display = getActiveDisplay(Game.this, prefConfig);
 
         // For semi-square displays, we use more complex logic to determine which orientation to use (if any)
@@ -2417,7 +2428,7 @@ public class Game extends AppCompatActivity implements SurfaceHolder.Callback,
         virtualKeyboardModifierFlags = virtualModifiers;
         conn.sendKeyboardInput(translated,
                 keyDown ? KeyboardPacket.KEY_DOWN : KeyboardPacket.KEY_UP,
-                getModifierState(), (byte) 0);
+                getModifierState(), KeyboardTranslator.getVirtualKeyFlags(androidKeyCode));
         return true;
     }
 
@@ -4928,7 +4939,9 @@ public class Game extends AppCompatActivity implements SurfaceHolder.Callback,
     }
 
     private boolean shouldBypassOrientationRelock() {
-        return prefConfig != null && prefConfig.hostResolutionRotation;
+        // Apply the initial orientation before preserving subsequent explicit host rotations.
+        return prefConfig != null && prefConfig.hostResolutionRotation
+                && getRequestedOrientation() != ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED;
     }
 
     private boolean isExplicitOrientationRequestReached(int orientation) {

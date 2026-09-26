@@ -9,6 +9,7 @@ import android.view.KeyEvent;
 
 import com.limelight.LimeLog;
 import com.limelight.nvstream.input.KeyboardPacket;
+import com.limelight.nvstream.jni.MoonBridge;
 import com.limelight.preferences.PreferenceConfiguration;
 import com.limelight.utils.KeyMapper;
 
@@ -91,14 +92,25 @@ public class KeyboardTranslator implements InputManager.InputDeviceListener {
 
     public static final int VK_F4 = 115;
 
+    /** Software Ctrl keys express a VK intent, not a physical Korean Hanja scan code. */
+    public static byte getVirtualKeyFlags(int androidKeyCode) {
+        return androidKeyCode == KeyEvent.KEYCODE_CTRL_LEFT
+                || androidKeyCode == KeyEvent.KEYCODE_CTRL_RIGHT
+                ? MoonBridge.SS_KBE_FLAG_NON_NORMALIZED : 0;
+    }
+
     public static byte getModifier(short key) {
         switch (key) {
+            case 0xA1: // VK_RSHIFT
             case VK_LSHIFT:
                 return KeyboardPacket.MODIFIER_SHIFT;
+            case 0xA3: // VK_RCONTROL
             case VK_LCONTROL:
                 return KeyboardPacket.MODIFIER_CTRL;
+            case 0x5C: // VK_RWIN
             case VK_LWIN:
                 return KeyboardPacket.MODIFIER_META;
+            case 0xA5: // VK_RMENU
             case VK_LMENU:
                 return KeyboardPacket.MODIFIER_ALT;
             default:

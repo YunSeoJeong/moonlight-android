@@ -34,6 +34,19 @@ public final class KeySpec {
         this.hangulLabels = hangulLabels;
     }
 
+    public LogicalKey effectiveKey(boolean fnActive, boolean navActive) {
+        if (navActive) {
+            switch (logicalKey) {
+                case KEY_I: return LogicalKey.ARROW_UP;
+                case KEY_J: return LogicalKey.ARROW_LEFT;
+                case KEY_K: return LogicalKey.ARROW_DOWN;
+                case KEY_L: return LogicalKey.ARROW_RIGHT;
+                default: break;
+            }
+        }
+        return effectiveKey(fnActive);
+    }
+
     public LogicalKey effectiveKey(boolean fnActive) {
         return fnActive && fnMappedKey != null ? fnMappedKey : logicalKey;
     }

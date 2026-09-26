@@ -266,6 +266,49 @@ public class KeyboardStateControllerTest {
         assertEquals("U:LEFT_SHIFT:0", transport.events.get(3));
     }
 
+    @Test
+    public void navIsMomentaryAndReleasesTheOriginalArrowAfterNavIsLifted() {
+        controller.pointerDown(1, find(LogicalKey.NAV), 0);
+        controller.pointerDown(2, find(LogicalKey.KEY_I), 10);
+        controller.pointerUp(1, 20);
+        assertTrue(!controller.isNavActive());
+        controller.pointerUp(2, 30);
+        controller.pointerDown(3, find(LogicalKey.KEY_I), 40);
+        controller.pointerUp(3, 50);
+        assertEquals(java.util.Arrays.asList("D:ARROW_UP:0", "U:ARROW_UP:0",
+                "D:KEY_I:0", "U:KEY_I:0"), transport.events);
+    }
+
+    @Test
+    public void navTapNeverLatchesAndCancelClearsAllNavPointers() {
+        controller.pointerDown(1, find(LogicalKey.NAV), 0);
+        controller.pointerUp(1, 20);
+        assertTrue(!controller.isNavActive());
+        controller.pointerDown(2, find(LogicalKey.NAV), 30);
+        controller.pointerDown(3, find(LogicalKey.NAV), 40);
+        controller.pointerUp(2, 50);
+        assertTrue(controller.isNavActive());
+        controller.pointerDown(4, find(LogicalKey.KEY_J), 60);
+        controller.releaseAllPressedKeys(ReleaseReason.SCREEN_ROTATION);
+        assertTrue(!controller.isNavActive());
+        assertEquals(java.util.Arrays.asList("D:ARROW_LEFT:0", "U:ARROW_LEFT:0"), transport.events);
+    }
+
+    @Test
+    public void rightCtrlChordsAndReleasingOneCtrlKeepsTheOtherActive() {
+        controller.pointerDown(1, find(LogicalKey.RIGHT_CTRL), 0);
+        controller.pointerDown(2, find(LogicalKey.KEY_C), 10);
+        controller.pointerUp(2, 20);
+        controller.pointerDown(3, find(LogicalKey.LEFT_CTRL), 30);
+        controller.pointerUp(1, 500);
+        controller.pointerDown(4, find(LogicalKey.KEY_V), 510);
+        controller.pointerUp(4, 520);
+        controller.pointerUp(3, 600);
+        assertEquals(java.util.Arrays.asList("D:RIGHT_CTRL:2", "D:KEY_C:2", "U:KEY_C:2",
+                "D:LEFT_CTRL:2", "U:RIGHT_CTRL:2", "D:KEY_V:2", "U:KEY_V:2", "U:LEFT_CTRL:0"),
+                transport.events);
+    }
+
     private static KeySpec find(LogicalKey key) {
         for (KeyboardRowSpec row : SplitKeyboardLayout.createRows()) {
             for (KeySpec spec : row.leftKeys) {

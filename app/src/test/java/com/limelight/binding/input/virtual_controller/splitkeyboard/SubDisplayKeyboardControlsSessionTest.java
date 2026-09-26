@@ -28,6 +28,41 @@ public class SubDisplayKeyboardControlsSessionTest {
     }
 
     @Test
+    public void fractionalMouseDeltasAccumulateInBothDirections() {
+        session.setInputSensitivities(50, 50, 100);
+        session.pointerDown(owner, 1, Control.RT);
+        for (int i = 0; i < 7; i++) session.sendTrackpadMove(0.25f, -0.25f);
+        assertTrue(transport.events.isEmpty());
+        session.sendTrackpadMove(0.25f, -0.25f);
+        assertEquals("M:1:-1", transport.events.get(0));
+        for (int i = 0; i < 8; i++) session.sendTrackpadMove(-0.25f, 0.25f);
+        assertEquals("M:-1:1", transport.events.get(1));
+    }
+
+    @Test
+    public void compatibilityCursorKeepsSubpixelMovement() {
+        session.setCursorBounds(1000, 500);
+        session.setTouchCompatibilityEnabled(true);
+        session.pointerDown(owner, 1, Control.RT);
+        for (int i = 0; i < 4; i++) session.sendTrackpadMove(0.25f, -0.25f);
+        assertEquals(501f, session.getCursorX(), 0.01f);
+        assertEquals(249f, session.getCursorY(), 0.01f);
+    }
+
+    @Test
+    public void fractionalScrollAccumulatesAndModeSwitchDiscardsOldRemainder() {
+        session.pointerDown(owner, 1, Control.RT);
+        session.sendTrackpadMove(0.75f, 0f);
+        session.pointerUp(owner, 1);
+        session.pointerDown(owner, 2, Control.RT);
+        session.sendTrackpadMove(0.25f, 0f);
+        assertTrue(transport.events.isEmpty());
+        session.pointerDown(owner, 3, Control.RB);
+        for (int i = 0; i < 4; i++) session.sendTrackpadScroll(0.0625f, -0.0625f);
+        assertEquals("S:-1:-1", transport.events.get(0));
+    }
+
+    @Test
     public void lbAndLtMapToLeftAndRightMouseButtons() {
         assertTrue(session.pointerDown(owner, 1, Control.LB));
         session.pointerUp(owner, 1);

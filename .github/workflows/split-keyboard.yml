@@ -1,0 +1,44 @@
+name: Split keyboard verification
+on:
+  pull_request:
+    paths:
+      - 'app/**'
+      - '*.gradle'
+      - '.github/workflows/split-keyboard.yml'
+  push:
+    branches: ['codex/split-keyboard-nav-input-fixes']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  test-and-build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: android-actions/setup-android@v3
+      - uses: gradle/actions/setup-gradle@v4
+      - name: Install SDK and NDK
+        run: sdkmanager 'platforms;android-36' 'build-tools;36.0.0' 'ndk;27.0.12077973'
+      - name: Input and layout regression tests
+        run: >-
+          ./gradlew :app:testNonRoot_gameDebugUnitTest
+          --tests 'com.limelight.binding.input.virtual_controller.splitkeyboard.*'
+          --tests 'com.limelight.binding.input.KeyboardTranslatorTest'
+          --tests 'com.limelight.GameOrientationTest'
+          --stacktrace
+      - name: Build debug APK
+        run: ./gradlew :app:assembleNonRoot_gameDebug --stacktrace
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: split-keyboard-verification
+          path: |
+            app/build/reports/tests/
+            app/build/outputs/apk/nonRoot_game/debug/*.apk

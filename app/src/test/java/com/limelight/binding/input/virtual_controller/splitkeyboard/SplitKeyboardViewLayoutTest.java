@@ -59,7 +59,7 @@ public class SplitKeyboardViewLayoutTest {
 
         assertEquals(SplitKeyboardLayout.KEY_COUNT + 1, keyboardView.getChildCount());
         View toggle = keyboardView.getChildAt(SplitKeyboardLayout.KEY_COUNT);
-        View firstRightKey = keyboardView.getChildAt(6);
+        View firstRightKey = keyboardView.getChildAt(7);
         assertTrue(toggle.getLeft() < 1080 && toggle.getRight() > 1080);
         assertTrue("compatibility toggle must not overlap the trackpad area",
                 toggle.getRight() <= firstRightKey.getLeft());
@@ -111,8 +111,8 @@ public class SplitKeyboardViewLayoutTest {
                 View.MeasureSpec.makeMeasureSpec(641, View.MeasureSpec.EXACTLY));
         keyboardView.layout(0, 0, 2160, 641);
 
-        View numberOne = keyboardView.getChildAt(1);
-        View q = keyboardView.getChildAt(16);
+        View numberOne = keyboardView.getChildAt(2);
+        View q = keyboardView.getChildAt(15);
         assertTrue(numberOne.getBottom() < q.getTop());
         float overlapLeft = Math.max(numberOne.getLeft(), q.getLeft());
         float overlapRight = Math.min(numberOne.getRight(), q.getRight());
@@ -208,6 +208,29 @@ public class SplitKeyboardViewLayoutTest {
         assertTrue("Z must start to the right of A", zStart > aStart);
         assertEquals(0.5f, aStart - qStart, 0f);
         assertEquals(0.5f, zStart - aStart, 0f);
+    }
+
+    @Test
+    public void navTouchChangesOnlyIJKLDescriptionsUntilRelease() {
+        keyboardView.measure(View.MeasureSpec.makeMeasureSpec(2160, View.MeasureSpec.EXACTLY),
+                View.MeasureSpec.makeMeasureSpec(641, View.MeasureSpec.EXACTLY));
+        keyboardView.layout(0, 0, 2160, 641);
+        List<KeySpec> specs = specsInChildOrder();
+        View nav = keyboardView.getChildAt(indexOf(LogicalKey.NAV, specs));
+        View i = keyboardView.getChildAt(indexOf(LogicalKey.KEY_I, specs));
+        String normalDescription = i.getContentDescription().toString();
+        float x = (nav.getLeft() + nav.getRight()) / 2f;
+        float y = (nav.getTop() + nav.getBottom()) / 2f;
+        keyboardView.onTouchEvent(MotionEvent.obtain(0, 0, MotionEvent.ACTION_DOWN, x, y, 0));
+        assertEquals("↑ 방향키", i.getContentDescription().toString());
+        keyboardView.onTouchEvent(MotionEvent.obtain(0, 20, MotionEvent.ACTION_UP, x, y, 0));
+        assertEquals(normalDescription, i.getContentDescription().toString());
+        assertTrue(transport.downKeys.isEmpty());
+    }
+
+    private int indexOf(LogicalKey key, List<KeySpec> specs) {
+        for (int i = 0; i < specs.size(); i++) if (specs.get(i).logicalKey == key) return i;
+        throw new AssertionError("Missing key " + key);
     }
 
     private int widthOf(LogicalKey key, List<KeySpec> specs) {

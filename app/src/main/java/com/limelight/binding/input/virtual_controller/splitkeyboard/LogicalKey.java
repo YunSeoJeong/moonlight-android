@@ -58,6 +58,7 @@ public enum LogicalKey {
     MENU(KeyEvent.KEYCODE_MENU),
     SPACE(KeyEvent.KEYCODE_SPACE, true),
     HANGUL_TOGGLE(KeyEvent.KEYCODE_LANGUAGE_SWITCH),
+    NAV(KeyEvent.KEYCODE_UNKNOWN, false, null, true),
     FN(KeyEvent.KEYCODE_UNKNOWN, false, null, true),
     KEYBOARD_HIDE(KeyEvent.KEYCODE_UNKNOWN, false, null, true),
 
