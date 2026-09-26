@@ -18,7 +18,7 @@ Base: `YunSeoJeong/moonlight-android`, `moonlight-noir`, commit `759365e7b544b74
 - Compiled the changed core layout/state/mouse classes with Java 17 and minimal Android boundary stubs; 24 smoke checks passed. Covered layout count and F-key split, Delete placement, all four Nav mappings, release order, normal-letter restoration, multiple Nav fingers, cancellation, right-Ctrl chord, dual-Space reference counts, positive/negative fractional movement, and compatibility cursor precision.
 - This smoke check does **not** validate Android UI rendering, orientation callbacks, JNI transport, Windows input behavior, or an APK build.
 - Added regression tests for layout geometry, Nav touch/labels/state, modifiers, fractional mouse/scroll, and Game orientation. Added `.github/workflows/split-keyboard.yml` to run the relevant Robolectric tests and build debug APKs after publication.
-- Full Gradle/Robolectric/APK verification was not run: the current environment has no Android SDK and the Gradle wrapper could not download its distribution. GitHub upload was blocked by automatic approval review, so CI has not run.
+- Full Gradle/Robolectric/APK verification was not run: the current environment has no Android SDK and the Gradle wrapper could not download its distribution. The user approved publication and PR #5 is open. Initial CI stopped while setup-android requested the retired SDK tools package; the workflow now explicitly installs platform-tools. Full CI results are pending.
 
 ## Device acceptance checks
 
