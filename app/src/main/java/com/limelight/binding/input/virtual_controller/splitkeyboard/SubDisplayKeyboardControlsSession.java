@@ -223,7 +223,7 @@ public final class SubDisplayKeyboardControlsSession {
         return trackpadMode;
     }
 
-    public boolean sendTrackpadMove(int deltaX, int deltaY) {
+    public boolean sendTrackpadMove(float deltaX, float deltaY) {
         if (trackpadMode != TrackpadMode.MOUSE || !transport.isConnected()) {
             return false;
         }
@@ -253,7 +253,7 @@ public final class SubDisplayKeyboardControlsSession {
     }
 
     /** Sends raw pad deltas, mapping rightward swipes to leftward content scrolling. */
-    public boolean sendTrackpadScroll(int deltaX, int deltaY) {
+    public boolean sendTrackpadScroll(float deltaX, float deltaY) {
         if (trackpadMode != TrackpadMode.SCROLL || !transport.isConnected()) {
             return false;
         }

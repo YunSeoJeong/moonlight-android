@@ -54,6 +54,7 @@ public final class KeyboardStateController {
     private final Set<LogicalKey> lockedModifiers = EnumSet.noneOf(LogicalKey.class);
     private final Set<LogicalKey> oneShotModifiers = EnumSet.noneOf(LogicalKey.class);
     private final Map<LogicalKey, Long> oneShotTapTimes = new EnumMap<>(LogicalKey.class);
+    private final Set<Integer> navPointers = new java.util.HashSet<>();
     private final Set<Integer> fnPointers = new java.util.HashSet<>();
 
     private Listener listener;
@@ -78,6 +79,14 @@ public final class KeyboardStateController {
             return false;
         }
 
+        if (spec.logicalKey == LogicalKey.NAV) {
+            navPointers.add(pointerId);
+            pointers.put(pointerId, new PointerPress(pointerId, spec, LogicalKey.NAV,
+                    eventTime, false));
+            notifyStateChanged();
+            return true;
+        }
+
         if (spec.logicalKey == LogicalKey.FN) {
             boolean wasLocked = fnLocked;
             fnPointers.add(pointerId);
@@ -91,7 +100,7 @@ public final class KeyboardStateController {
             return false;
         }
 
-        LogicalKey effectiveKey = spec.effectiveKey(isFnActive());
+        LogicalKey effectiveKey = spec.effectiveKey(isFnActive(), isNavActive());
         if (effectiveKey.localOnly || !effectiveKey.transportSupported) {
             return false;
         }
@@ -154,6 +163,12 @@ public final class KeyboardStateController {
             return;
         }
 
+        if (press.effectiveKey == LogicalKey.NAV) {
+            navPointers.remove(pointerId);
+            notifyStateChanged();
+            return;
+        }
+
         if (press.effectiveKey == LogicalKey.FN) {
             handleFnPointerUp(press, eventTime);
             notifyStateChanged();
@@ -206,6 +221,7 @@ public final class KeyboardStateController {
         holdCounts.clear();
         momentaryModifierPointers.clear();
         fnPointers.clear();
+        navPointers.clear();
         fnLocked = false;
         fnOneShot = false;
         fnOneShotTapTime = 0;
@@ -252,6 +268,10 @@ public final class KeyboardStateController {
         if (!pointerIds.isEmpty()) {
             notifyStateChanged();
         }
+    }
+
+    public boolean isNavActive() {
+        return !navPointers.isEmpty();
     }
 
     public boolean isFnActive() {
@@ -381,6 +401,12 @@ public final class KeyboardStateController {
     private void cancelPointer(int pointerId) {
         PointerPress press = pointers.remove(pointerId);
         if (press == null) {
+            return;
+        }
+
+        if (press.effectiveKey == LogicalKey.NAV) {
+            navPointers.remove(pointerId);
+            notifyStateChanged();
             return;
         }
 
@@ -572,6 +598,7 @@ public final class KeyboardStateController {
         oneShotTapTimes.clear();
         remoteDown.clear();
         fnPointers.clear();
+        navPointers.clear();
         fnLocked = false;
         fnOneShot = false;
         fnOneShotTapTime = 0;

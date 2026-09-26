@@ -12,19 +12,24 @@ import java.util.Map;
 
 public class SplitKeyboardLayoutTest {
     @Test
-    public void layoutContainsExactly68ImageKeys() {
+    public void layoutKeepsOnlyRequestedUtilityKeys() {
         Map<LogicalKey, KeySpec> specs = specsByKey();
 
         assertEquals(SplitKeyboardLayout.KEY_COUNT, countKeys());
         assertFalse(specs.containsKey(LogicalKey.INSERT));
         assertFalse(specs.containsKey(LogicalKey.END));
         assertFalse(specs.containsKey(LogicalKey.GRAVE));
-        assertTrue(specs.containsKey(LogicalKey.HOME));
+        assertFalse(specs.containsKey(LogicalKey.HOME));
         assertTrue(specs.containsKey(LogicalKey.DELETE));
-        assertTrue(specs.containsKey(LogicalKey.PAGE_UP));
-        assertTrue(specs.containsKey(LogicalKey.PAGE_DOWN));
+        assertFalse(specs.containsKey(LogicalKey.PAGE_UP));
+        assertFalse(specs.containsKey(LogicalKey.PAGE_DOWN));
         assertEquals(LogicalKey.GRAVE, specs.get(LogicalKey.ESCAPE).fnMappedKey);
-        assertEquals(LogicalKey.END, specs.get(LogicalKey.HOME).fnMappedKey);
+        assertFalse(specs.containsKey(LogicalKey.LEFT_ALT));
+        assertFalse(specs.containsKey(LogicalKey.ARROW_UP));
+        assertFalse(specs.containsKey(LogicalKey.ARROW_DOWN));
+        assertFalse(specs.containsKey(LogicalKey.ARROW_LEFT));
+        assertFalse(specs.containsKey(LogicalKey.ARROW_RIGHT));
+        assertTrue(specs.containsKey(LogicalKey.NAV));
         assertEquals(LogicalKey.INSERT, specs.get(LogicalKey.DELETE).fnMappedKey);
     }
 
@@ -47,6 +52,33 @@ public class SplitKeyboardLayoutTest {
             assertEquals(functionKeys[i], specs.get(baseKeys[i]).fnMappedKey);
             assertNull(specs.get(functionKeys[i]));
         }
+    }
+
+    @Test
+    public void balancedFunctionRowAndBottomRightDelete() {
+        java.util.List<KeyboardRowSpec> rows = SplitKeyboardLayout.createRows();
+        assertEquals(LogicalKey.F6, rows.get(0).leftKeys.get(6).fnMappedKey);
+        assertEquals(LogicalKey.F7, rows.get(0).rightKeys.get(0).fnMappedKey);
+        java.util.List<KeySpec> bottom = rows.get(4).rightKeys;
+        assertEquals(LogicalKey.DELETE, bottom.get(bottom.size() - 1).logicalKey);
+        assertEquals(LogicalKey.SPACE, bottom.get(0).logicalKey);
+        assertTrue(rows.get(4).leftKeys.stream().anyMatch(k -> k.logicalKey == LogicalKey.SPACE));
+        assertNull(rows.get(4).centerKey);
+    }
+
+    @Test
+    public void navigationMappingDoesNotChangeNormalLabelsOrFnLayer() {
+        Map<LogicalKey, KeySpec> specs = specsByKey();
+        LogicalKey[] letters = {LogicalKey.KEY_I, LogicalKey.KEY_J, LogicalKey.KEY_K, LogicalKey.KEY_L};
+        LogicalKey[] arrows = {LogicalKey.ARROW_UP, LogicalKey.ARROW_LEFT, LogicalKey.ARROW_DOWN, LogicalKey.ARROW_RIGHT};
+        for (int i = 0; i < letters.length; i++) {
+            KeySpec spec = specs.get(letters[i]);
+            assertEquals(letters[i], spec.effectiveKey(false, false));
+            assertEquals(arrows[i], spec.effectiveKey(false, true));
+            assertTrue(spec.hangulLabels);
+            assertTrue(spec.secondaryLabel != null);
+        }
+        assertEquals(LogicalKey.F1, specs.get(LogicalKey.NUMBER_1).effectiveKey(true, true));
     }
 
     private static int countKeys() {

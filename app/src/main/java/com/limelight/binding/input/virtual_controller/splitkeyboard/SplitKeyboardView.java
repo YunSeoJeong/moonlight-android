@@ -298,7 +298,7 @@ public final class SplitKeyboardView extends ViewGroup
             // Prevent a right-side key held while the pad appears from getting stuck.
             stateController.releasePressedKeys(rightKeySpecs, ReleaseReason.ACTION_CANCEL);
         }
-        if (newMode == TrackpadMode.NONE) {
+        if (newMode != trackpadMode) {
             resetTrackpadPointer();
         }
         trackpadMode = newMode;
@@ -463,8 +463,8 @@ public final class SplitKeyboardView extends ViewGroup
 
         float x = event.getX(index);
         float y = event.getY(index);
-        int deltaX = Math.round(x - lastTrackpadX);
-        int deltaY = Math.round(y - lastTrackpadY);
+        float deltaX = x - lastTrackpadX;
+        float deltaY = y - lastTrackpadY;
         lastTrackpadX = x;
         lastTrackpadY = y;
         if (deltaX == 0 && deltaY == 0) {
@@ -652,10 +652,10 @@ public final class SplitKeyboardView extends ViewGroup
         if (stateController == null || !stateController.isTransportConnected()) {
             return false;
         }
-        LogicalKey effective = spec.effectiveKey(stateController.isFnActive());
+        LogicalKey effective = spec.effectiveKey(stateController.isFnActive(), stateController.isNavActive());
         return effective.transportSupported
                 && (effective.androidKeyCode != android.view.KeyEvent.KEYCODE_UNKNOWN
-                    || effective == LogicalKey.FN);
+                    || effective == LogicalKey.FN || effective == LogicalKey.NAV);
     }
 
     private void updateVisualStates() {
@@ -665,7 +665,7 @@ public final class SplitKeyboardView extends ViewGroup
         boolean fnActive = stateController.isFnActive();
         for (KeyCapView keyCap : keyCaps) {
             KeySpec spec = keyCap.spec;
-            LogicalKey effective = spec.effectiveKey(fnActive);
+            LogicalKey effective = spec.effectiveKey(fnActive, stateController.isNavActive());
             boolean pressed = stateController.isPointerHolding(spec);
             boolean locked = stateController.isLocked(spec.logicalKey);
             boolean oneShot = stateController.isOneShot(spec.logicalKey);
@@ -686,7 +686,13 @@ public final class SplitKeyboardView extends ViewGroup
             if (fnActive && spec.fnMappedKey != null) {
                 description += ", Fn " + SplitKeyboardLayout.labelFor(effective);
             }
+            if (stateController.isNavActive() && effective != spec.logicalKey
+                    && spec.hangulLabels) {
+                description = SplitKeyboardLayout.labelFor(effective) + " 방향키";
+            }
             keyCap.setContentDescription(description);
+            // Layer changes do not necessarily change pressed/locked state.
+            keyCap.invalidate();
         }
         invalidate();
     }
@@ -973,6 +979,14 @@ public final class SplitKeyboardView extends ViewGroup
 
         private void drawLabels(Canvas canvas) {
             boolean fnActive = stateController != null && stateController.isFnActive();
+            if (stateController != null && stateController.isNavActive()) {
+                LogicalKey effective = spec.effectiveKey(fnActive, true);
+                if (spec.hangulLabels && effective != spec.logicalKey) {
+                    drawCentered(canvas, SplitKeyboardLayout.labelFor(effective),
+                            0.36f, KEY_ACCENT_COLOR);
+                    return;
+                }
+            }
             if (fnActive && spec.fnMappedKey != null) {
                 drawCentered(canvas, SplitKeyboardLayout.labelFor(spec.fnMappedKey),
                         0.23f, spec.fnMappedKey.transportSupported
@@ -1067,6 +1081,7 @@ public final class SplitKeyboardView extends ViewGroup
                 case LEFT_META:
                 case RIGHT_META:
                 case HANGUL_TOGGLE:
+                case NAV:
                 case FN:
                 case MENU:
                 case ARROW_UP:
